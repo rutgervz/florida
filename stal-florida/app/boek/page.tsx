@@ -87,6 +87,12 @@ export default function BookingPage() {
       .catch(console.error)
   }, [selectedProduct, calendarMonth])
 
+  useEffect(() => {
+    if (step === 3 && riders.length === 0) {
+      setRiders([{ name: '', age: 0, weight: 0, experience: '', type: 'adult' }])
+    }
+  }, [step])
+
   function renderStep1() {
     return (
       <div>
@@ -239,6 +245,8 @@ export default function BookingPage() {
 
     const currentAdults = riders.filter(r => r.type === 'adult').length
     const currentChildren = riders.filter(r => r.type === 'child').length
+    const canAddMore = riders.length < avail.total_available
+    const allValid = riders.length > 0 && riders.every(r => r.name && r.age >= selectedProduct.min_age && r.weight > 0 && r.weight <= selectedProduct.max_weight_adult && r.experience)
 
     function addRider() {
       setRiders([...riders, { name: '', age: 0, weight: 0, experience: '', type: 'adult' }])
@@ -256,9 +264,6 @@ export default function BookingPage() {
     function removeRider(index: number) {
       setRiders(riders.filter((_, i) => i !== index))
     }
-
-    const canAddMore = riders.length < avail.total_available
-    const allValid = riders.length > 0 && riders.every(r => r.name && r.age >= selectedProduct.min_age && r.weight > 0 && r.weight <= selectedProduct.max_weight_adult && r.experience)
 
     return (
       <div className="pb-28">
@@ -361,16 +366,13 @@ export default function BookingPage() {
           </div>
         ))}
 
-        <div className="flex justify-between items-center mt-4">
-          {riders.length === 0 ? (
-            <button onClick={addRider} className="px-6 py-3 rounded-xl text-white font-medium shadow-sm" style={{ backgroundColor: '#' + selectedProduct.accent }}>
-              + Eerste ruiter toevoegen
-            </button>
-          ) : canAddMore ? (
+        <div className="mt-4">
+          {canAddMore && (
             <button onClick={addRider} className="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-sm font-medium">
               + Ruiter toevoegen
             </button>
-          ) : (
+          )}
+          {!canAddMore && (
             <span className="text-sm text-gray-400">Maximaal aantal ruiters bereikt</span>
           )}
         </div>
