@@ -170,7 +170,7 @@ export default function BookingPage() {
                       ? 'text-gray-300 cursor-not-allowed'
                       : 'hover:bg-gray-50 cursor-pointer'
                   }`}
-                  style={isSelected ? { backgroundColor: `#${selectedProduct.accent}15`, ringColor: `#${selectedProduct.accent}` } : {}}
+                  style={isSelected ? { backgroundColor: `#${selectedProduct.accent}15`, outlineColor: `#${selectedProduct.accent}`, outline: '2px solid' } : {}}
                   onClick={() => {
                     setSelectedDate(dateStr)
                     setRiders([])
