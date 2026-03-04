@@ -257,12 +257,12 @@ export default function BookingPage() {
     function hasEnoughExperience(experience: string): boolean {
       if (!experience) return false
       const riderGaits = experienceGaits[experience] || []
-      const required = selectedProduct.required_gaits || []
+      const required = selectedProduct?.required_gaits || []
       return required.every((g: string) => riderGaits.includes(g))
     }
 
     function getMinExperienceLabel(): string {
-      const required = selectedProduct.required_gaits || []
+      const required = selectedProduct?.required_gaits || []
       if (required.includes('galop')) return 'ervaren (stap, draf en galop)'
       if (required.includes('draf')) return 'gevorderd (stap en draf)'
       return 'beginner (stap)'
