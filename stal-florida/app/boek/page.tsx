@@ -389,13 +389,13 @@ export default function BookingPage() {
                 }
               >
                 <option value="">Kies ervaring...</option>
-                <option value="beginner">Beginner (stap)</option>
-                <option value="gevorderd">Gevorderd (stap en draf)</option>
+                {hasEnoughExperience('beginner') && <option value="beginner">Beginner (stap)</option>}
+                {hasEnoughExperience('gevorderd') && <option value="gevorderd">Gevorderd (stap en draf)</option>}
                 <option value="ervaren">Ervaren (stap, draf en galop)</option>
               </select>
               {rider.experience && !hasEnoughExperience(rider.experience) && (
                 <p className="text-xs text-red-500 mt-1">
-                  Onvoldoende ervaring voor {selectedProduct.name}. Minimaal {getMinExperienceLabel()} vereist.
+                  Onvoldoende ervaring voor {selectedProduct?.name}. Minimaal {getMinExperienceLabel()} vereist.
                 </p>
               )}
             </div>
@@ -575,15 +575,15 @@ export default function BookingPage() {
       <nav className="bg-gray-900 text-white px-6 py-4">
         <div className="max-w-4xl mx-auto flex justify-between items-center">
           <span className="font-serif text-lg">Stal Florida</span>
-          <div className="hidden md:flex gap-6">
+          <div className="flex gap-2 md:gap-6">
             {steps.map((label, i) => (
-              <div key={label} className="flex items-center gap-2">
+              <div key={label} className="flex items-center gap-1 md:gap-2">
                 <span className={'w-6 h-6 rounded-full flex items-center justify-center text-xs ' +
                   (i + 1 === step ? 'bg-cyan-700 text-white' :
                   i + 1 < step ? 'bg-green-700 text-white' :
                   'bg-gray-700 text-gray-400')
                 }>{i + 1}</span>
-                <span className={'text-sm ' + (i + 1 === step ? 'text-white font-medium' : 'text-gray-500')}>{label}</span>
+                <span className={'text-xs md:text-sm ' + (i + 1 === step ? 'text-white font-medium' : 'text-gray-500 hidden md:inline')}>{label}</span>
               </div>
             ))}
           </div>
