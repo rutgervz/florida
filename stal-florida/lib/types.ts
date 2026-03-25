@@ -9,12 +9,14 @@ export interface Product {
   duration_minutes: number
   required_gaits: string[]
   min_age: number
+  max_age: number | null
   max_weight_adult: number
   max_weight_child: number
   slots_adult: number
   slots_child: number
   slots_total: number
   available_days: number[]
+  time_slots: string[] | null
   warning: string | null
   active: boolean
   sort_order: number
@@ -34,6 +36,7 @@ export interface Reservation {
   id: string
   product_id: string
   date: string
+  time_slot: string | null
   status: 'pending' | 'confirmed' | 'expired' | 'cancelled'
   riders: Rider[]
   num_adults: number
@@ -55,10 +58,16 @@ export interface BlockedDate {
   reason: string | null
 }
 
+export interface SlotAvailability {
+  total_available: number
+  blocked: boolean
+}
+
 export interface Availability {
   adults_available: number
   children_available: number
   total_available: number
   blocked: boolean
   block_reason?: string
+  slots?: Record<string, SlotAvailability>
 }

@@ -78,6 +78,7 @@ export async function POST(request: NextRequest) {
               riders: reservation.riders,
               totalAmount: reservationAmount,
               warning: product.warning || undefined,
+              timeSlot: reservation.time_slot ? reservation.time_slot.substring(0, 5) : undefined,
             })
           } catch (emailError) {
             console.error('Email send error:', emailError)

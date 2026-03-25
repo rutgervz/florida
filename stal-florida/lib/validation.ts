@@ -1,9 +1,8 @@
-// Input validation and sanitization
-
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const PHONE_REGEX = /^[0-9+\-\s()]{6,20}$/
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/
+const TIME_REGEX = /^\d{2}:\d{2}(:\d{2})?$/
 const MAX_NAME_LENGTH = 100
 const MAX_RIDERS = 6
 const MAX_DATE_RANGE_DAYS = 62
@@ -15,19 +14,11 @@ export function sanitizeString(input: unknown): string {
 
 export function sanitizeName(input: unknown): string {
   if (typeof input !== 'string') return ''
-  return input
-    .trim()
-    .substring(0, MAX_NAME_LENGTH)
-    .replace(/[<>"'&]/g, '') // strip HTML-sensitive chars
+  return input.trim().substring(0, MAX_NAME_LENGTH).replace(/[<>"'&]/g, '')
 }
 
 export function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;')
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;')
 }
 
 export function isValidEmail(email: unknown): boolean {
@@ -37,7 +28,7 @@ export function isValidEmail(email: unknown): boolean {
 
 export function isValidPhone(phone: unknown): boolean {
   if (typeof phone !== 'string') return false
-  if (phone.length === 0) return true // phone is optional
+  if (phone.length === 0) return true
   return PHONE_REGEX.test(phone)
 }
 
@@ -49,8 +40,12 @@ export function isValidUUID(id: unknown): boolean {
 export function isValidDate(date: unknown): boolean {
   if (typeof date !== 'string') return false
   if (!DATE_REGEX.test(date)) return false
-  const d = new Date(date)
-  return !isNaN(d.getTime())
+  return !isNaN(new Date(date).getTime())
+}
+
+export function isValidTime(time: unknown): boolean {
+  if (typeof time !== 'string') return false
+  return TIME_REGEX.test(time)
 }
 
 export function isValidDateRange(startDate: string, endDate: string): boolean {
@@ -66,7 +61,7 @@ export function isPositiveInteger(val: unknown): boolean {
   return Number.isInteger(val) && val > 0
 }
 
-export function validateRiderInput(rider: any, minAge: number, maxWeight: number): string | null {
+export function validateRiderInput(rider: any, minAge: number, maxWeight: number, maxAge?: number | null): string | null {
   if (!rider || typeof rider !== 'object') return 'Ongeldige ruiter data'
 
   const name = sanitizeName(rider.name)
@@ -74,6 +69,10 @@ export function validateRiderInput(rider: any, minAge: number, maxWeight: number
 
   if (typeof rider.age !== 'number' || rider.age < minAge || rider.age > 120) {
     return 'Ongeldige leeftijd (min. ' + minAge + ', max. 120)'
+  }
+
+  if (maxAge && rider.age > maxAge) {
+    return 'Maximale leeftijd is ' + maxAge + ' jaar'
   }
 
   if (typeof rider.weight !== 'number' || rider.weight < 15 || rider.weight > maxWeight) {
@@ -85,10 +84,9 @@ export function validateRiderInput(rider: any, minAge: number, maxWeight: number
     return 'Kies een geldige ervaring'
   }
 
-  return null // valid
+  return null
 }
 
-// Maps experience level to which gaits the rider can do
 const EXPERIENCE_GAITS: Record<string, string[]> = {
   beginner: ['stap'],
   gevorderd: ['stap', 'draf'],

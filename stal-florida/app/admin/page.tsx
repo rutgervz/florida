@@ -270,7 +270,7 @@ function BookingCard({ booking: b, onCancel }: { booking: any; onCancel: (id: st
       <div className="flex justify-between items-start">
         <div>
           <span className="font-medium" style={{ color: '#2D6A7A' }}>{b.products?.icon} {b.products?.name}</span>
-          <span className="text-gray-400 text-sm ml-3">{new Date(b.date).toLocaleDateString('nl-NL', { weekday: 'short', day: 'numeric', month: 'long' })} - {b.products?.start_time ? b.products.start_time.substring(0, 5) : ''}</span>
+          <span className="text-gray-400 text-sm ml-3">{new Date(b.date).toLocaleDateString('nl-NL', { weekday: 'short', day: 'numeric', month: 'long' })} - {b.time_slot ? b.time_slot.substring(0, 5) : (b.products?.start_time ? b.products.start_time.substring(0, 5) : '')}</span>
         </div>
         <div className="text-right">
           <span className="text-xl font-serif">EUR {parseFloat(b.total_amount).toFixed(0)}</span>

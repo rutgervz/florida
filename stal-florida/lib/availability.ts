@@ -1,11 +1,11 @@
 import { supabaseAdmin } from './supabase'
-import type { Availability, Product } from './types'
+import type { Availability } from './types'
 
 export async function getAvailability(
   productId: string,
-  date: string
+  date: string,
+  timeSlot?: string
 ): Promise<Availability> {
-  // Get product
   const { data: product, error: productError } = await supabaseAdmin
     .from('products')
     .select('*')
@@ -17,32 +17,82 @@ export async function getAvailability(
     return { adults_available: 0, children_available: 0, total_available: 0, blocked: true }
   }
 
-  // Check if day of week is available
-  const dayOfWeek = new Date(date).getDay() // 0=Sun, 1=Mon, ...
-  // Convert JS day (0=Sun) to our format (1=Mon, ..., 7=Sun)
+  const dayOfWeek = new Date(date).getDay()
   const ourDay = dayOfWeek === 0 ? 7 : dayOfWeek
   if (!product.available_days.includes(ourDay)) {
     return { adults_available: 0, children_available: 0, total_available: 0, blocked: true, block_reason: 'Niet beschikbaar op deze dag' }
   }
 
-  // Check blocked dates
   const { data: blockedDates } = await supabaseAdmin
     .from('blocked_dates')
     .select('*')
     .eq('date', date)
-    .or(`product_id.eq.${productId},product_id.is.null`)
+    .or('product_id.eq.' + productId + ',product_id.is.null')
 
   if (blockedDates && blockedDates.length > 0) {
+    return { adults_available: 0, children_available: 0, total_available: 0, blocked: true, block_reason: blockedDates[0].reason || 'Geblokkeerd' }
+  }
+
+  // If product has time slots and a specific slot is requested
+  if (product.time_slots && product.time_slots.length > 0 && timeSlot) {
+    const { data: reservations } = await supabaseAdmin
+      .from('reservations')
+      .select('num_adults, num_children')
+      .eq('product_id', productId)
+      .eq('date', date)
+      .eq('time_slot', timeSlot)
+      .in('status', ['pending', 'confirmed'])
+
+    let used = 0
+    if (reservations) {
+      for (const r of reservations) { used += r.num_adults + r.num_children }
+    }
+    const totalLeft = product.slots_total - used
     return {
-      adults_available: 0,
-      children_available: 0,
-      total_available: 0,
-      blocked: true,
-      block_reason: blockedDates[0].reason || 'Geblokkeerd',
+      adults_available: Math.max(0, Math.min(product.slots_adult, totalLeft)),
+      children_available: Math.max(0, Math.min(product.slots_child, totalLeft)),
+      total_available: Math.max(0, totalLeft),
+      blocked: false,
     }
   }
 
-  // Calculate used slots from active reservations (pending + confirmed)
+  // If product has time slots, return per-slot availability
+  if (product.time_slots && product.time_slots.length > 0) {
+    const { data: reservations } = await supabaseAdmin
+      .from('reservations')
+      .select('time_slot, num_adults, num_children')
+      .eq('product_id', productId)
+      .eq('date', date)
+      .in('status', ['pending', 'confirmed'])
+
+    const slots: Record<string, { total_available: number; blocked: boolean }> = {}
+    let totalAvailAll = 0
+
+    for (const slot of product.time_slots) {
+      const slotKey = slot.substring(0, 5)
+      let used = 0
+      if (reservations) {
+        for (const r of reservations) {
+          if (r.time_slot && r.time_slot.substring(0, 5) === slotKey) {
+            used += r.num_adults + r.num_children
+          }
+        }
+      }
+      const left = Math.max(0, product.slots_total - used)
+      slots[slotKey] = { total_available: left, blocked: false }
+      totalAvailAll += left
+    }
+
+    return {
+      adults_available: 0,
+      children_available: 0,
+      total_available: totalAvailAll > 0 ? 1 : 0, // >0 means at least one slot available
+      blocked: false,
+      slots,
+    }
+  }
+
+  // Single time slot product (original logic)
   const { data: reservations } = await supabaseAdmin
     .from('reservations')
     .select('num_adults, num_children')
@@ -61,40 +111,22 @@ export async function getAvailability(
 
   const usedTotal = usedAdults + usedChildren
   const totalLeft = product.slots_total - usedTotal
-  const adultsAvailable = Math.min(product.slots_adult - usedAdults, totalLeft)
-  const childrenAvailable = Math.min(product.slots_child - usedChildren, totalLeft)
-
   return {
-    adults_available: Math.max(0, adultsAvailable),
-    children_available: Math.max(0, childrenAvailable),
+    adults_available: Math.max(0, Math.min(product.slots_adult - usedAdults, totalLeft)),
+    children_available: Math.max(0, Math.min(product.slots_child - usedChildren, totalLeft)),
     total_available: Math.max(0, totalLeft),
     blocked: false,
   }
 }
 
-// Get availability for all active products on a date range
-export async function getAvailabilityRange(
-  startDate: string,
-  endDate: string,
-  productId?: string
-) {
+export async function getAvailabilityRange(startDate: string, endDate: string, productId?: string) {
   const results: Record<string, Record<string, Availability>> = {}
 
-  // Get products
-  let query = supabaseAdmin
-    .from('products')
-    .select('*')
-    .eq('active', true)
-    .order('sort_order')
-
-  if (productId) {
-    query = query.eq('id', productId)
-  }
-
+  let query = supabaseAdmin.from('products').select('*').eq('active', true).order('sort_order')
+  if (productId) query = query.eq('id', productId)
   const { data: products } = await query
   if (!products) return results
 
-  // Generate date range
   const dates: string[] = []
   const current = new Date(startDate)
   const end = new Date(endDate)
@@ -103,22 +135,13 @@ export async function getAvailabilityRange(
     current.setDate(current.getDate() + 1)
   }
 
-  // Get all blocked dates in range
   const { data: blockedDates } = await supabaseAdmin
-    .from('blocked_dates')
-    .select('*')
-    .gte('date', startDate)
-    .lte('date', endDate)
+    .from('blocked_dates').select('*').gte('date', startDate).lte('date', endDate)
 
-  // Get all reservations in range
   const { data: reservations } = await supabaseAdmin
-    .from('reservations')
-    .select('product_id, date, num_adults, num_children')
-    .gte('date', startDate)
-    .lte('date', endDate)
-    .in('status', ['pending', 'confirmed'])
+    .from('reservations').select('product_id, date, time_slot, num_adults, num_children')
+    .gte('date', startDate).lte('date', endDate).in('status', ['pending', 'confirmed'])
 
-  // Calculate availability for each product/date combo
   for (const product of products) {
     results[product.id] = {}
 
@@ -126,41 +149,44 @@ export async function getAvailabilityRange(
       const dayOfWeek = new Date(date).getDay()
       const ourDay = dayOfWeek === 0 ? 7 : dayOfWeek
 
-      // Day not available
       if (!product.available_days.includes(ourDay)) {
-        results[product.id][date] = {
-          adults_available: 0,
-          children_available: 0,
-          total_available: 0,
-          blocked: true,
-        }
+        results[product.id][date] = { adults_available: 0, children_available: 0, total_available: 0, blocked: true }
         continue
       }
 
-      // Check blocked
-      const blocked = blockedDates?.find(
-        b => b.date === date && (b.product_id === product.id || b.product_id === null)
-      )
+      const blocked = blockedDates?.find(b => b.date === date && (b.product_id === product.id || b.product_id === null))
       if (blocked) {
+        results[product.id][date] = { adults_available: 0, children_available: 0, total_available: 0, blocked: true, block_reason: blocked.reason || 'Geblokkeerd' }
+        continue
+      }
+
+      // Time slots product
+      if (product.time_slots && product.time_slots.length > 0) {
+        const slots: Record<string, { total_available: number; blocked: boolean }> = {}
+        let totalAvailAll = 0
+
+        for (const slot of product.time_slots) {
+          const slotKey = slot.substring(0, 5)
+          let used = 0
+          reservations?.filter(r => r.product_id === product.id && r.date === date && r.time_slot && r.time_slot.substring(0, 5) === slotKey)
+            .forEach(r => { used += r.num_adults + r.num_children })
+          const left = Math.max(0, product.slots_total - used)
+          slots[slotKey] = { total_available: left, blocked: false }
+          totalAvailAll += left
+        }
+
         results[product.id][date] = {
-          adults_available: 0,
-          children_available: 0,
-          total_available: 0,
-          blocked: true,
-          block_reason: blocked.reason || 'Geblokkeerd',
+          adults_available: 0, children_available: 0,
+          total_available: totalAvailAll > 0 ? 1 : 0,
+          blocked: false, slots,
         }
         continue
       }
 
-      // Calculate used
-      let usedAdults = 0
-      let usedChildren = 0
-      reservations
-        ?.filter(r => r.product_id === product.id && r.date === date)
-        .forEach(r => {
-          usedAdults += r.num_adults
-          usedChildren += r.num_children
-        })
+      // Single slot product
+      let usedAdults = 0; let usedChildren = 0
+      reservations?.filter(r => r.product_id === product.id && r.date === date)
+        .forEach(r => { usedAdults += r.num_adults; usedChildren += r.num_children })
 
       const usedTotal = usedAdults + usedChildren
       const totalLeft = product.slots_total - usedTotal
