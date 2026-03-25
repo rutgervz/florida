@@ -1,7 +1,3 @@
-// Simple in-memory rate limiter
-// In production with multiple Vercel instances this won't be perfect,
-// but it prevents basic abuse. For stricter limits, use Vercel Edge Config or Upstash Redis.
-
 interface RateLimitEntry {
   count: number
   resetAt: number
@@ -9,14 +5,13 @@ interface RateLimitEntry {
 
 const store = new Map<string, RateLimitEntry>()
 
-// Clean up old entries periodically
 setInterval(() => {
   const now = Date.now()
-  for (const [key, entry] of store) {
+  store.forEach((entry, key) => {
     if (entry.resetAt < now) {
       store.delete(key)
     }
-  }
+  })
 }, 60000)
 
 export function rateLimit(
