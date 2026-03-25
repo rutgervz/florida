@@ -461,7 +461,12 @@ export default function BookingPage() {
             </div>
             <label className="flex items-start gap-3 mt-6 cursor-pointer">
               <input type="checkbox" checked={agreedToTerms} onChange={e => setAgreedToTerms(e.target.checked)} className="mt-1 w-4 h-4" />
-              <span className="text-sm" style={{ color: '#806040' }}>Ik ga akkoord met de voorwaarden</span>
+              <span className="text-sm" style={{ color: '#806040' }}>
+                Ik ga akkoord met de voorwaarden
+                {selectedProduct.required_gaits && selectedProduct.required_gaits.includes('draf') && (
+                  <span> en de <a href="/voorwaarden" target="_blank" className="underline" style={{ color: '#7A4A2D' }}>algemene voorwaarden</a></span>
+                )}
+              </span>
             </label>
           </div>
         </div>
