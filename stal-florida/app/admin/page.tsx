@@ -166,7 +166,16 @@ export default function AdminPage() {
               ))}
             </div>
             <div className="mt-6"><h2 className="text-lg font-serif mb-3">Blokkeren</h2><BlockDateForm products={products} authHeaders={authHeaders()} onBlocked={() => { loadBlockedDates(); loadAvailability() }} /></div>
-            {blockedDates.length > 0 && <div className="mt-4"><h3 className="text-sm font-medium text-gray-500 mb-2">Geblokkeerd</h3>{blockedDates.map((bd: any) => (<div key={bd.id} className="flex justify-between items-center bg-red-50 rounded-lg px-4 py-2 mb-1"><span className="text-sm text-red-700">{new Date(bd.date).toLocaleDateString('nl-NL')} - {bd.products?.name || 'Alle'}{bd.time_slot ? ' ' + bd.time_slot.substring(0, 5) : ''} - {bd.reason || 'Geen reden'}</span><button onClick={async () => { await fetch('/api/admin/block-date?id=' + bd.id, { method: 'DELETE', headers: authHeaders() }); loadBlockedDates(); loadAvailability() }} className="text-red-500 text-sm hover:text-red-700">Verwijder</button></div>))}</div>}
+            {blockedDates.length > 0 && <div className="mt-4"><h3 className="text-sm font-medium text-gray-500 mb-2">Actief</h3>{blockedDates.map((bd: any) => {
+              const isReduction = bd.reduce_capacity && bd.reduce_capacity > 0
+              const bgColor = isReduction ? 'bg-amber-50' : 'bg-red-50'
+              const textColor = isReduction ? 'text-amber-800' : 'text-red-700'
+              const slotsTotal = bd.products?.slots_total || 6
+              const label = isReduction
+                ? (bd.products?.icon || '') + ' ' + (bd.products?.name || 'Alle') + (bd.time_slot ? ' ' + bd.time_slot.substring(0, 5) : '') + ' — -' + bd.reduce_capacity + ' paarden (' + slotsTotal + '→' + (slotsTotal - bd.reduce_capacity) + ')'
+                : (bd.products?.icon || '') + ' ' + (bd.products?.name || 'Alle') + (bd.time_slot ? ' ' + bd.time_slot.substring(0, 5) : '') + ' — Hele rit geblokkeerd'
+              return (<div key={bd.id} className={'flex justify-between items-center rounded-lg px-4 py-2 mb-1 ' + bgColor}><span className={'text-sm font-medium ' + textColor}>{new Date(bd.date).toLocaleDateString('nl-NL')} — {label}</span><button onClick={async () => { await fetch('/api/admin/block-date?id=' + bd.id, { method: 'DELETE', headers: authHeaders() }); loadBlockedDates(); loadAvailability() }} className="text-red-500 text-sm hover:text-red-700">Verwijder</button></div>)
+            })}</div>}
           </div>
         )}
 
@@ -365,25 +374,27 @@ function BlockDateForm({ products, authHeaders, onBlocked }: { products: any[]; 
   const [date, setDate] = useState('')
   const [productId, setProductId] = useState('')
   const [timeSlot, setTimeSlot] = useState('')
-  const [reason, setReason] = useState('')
+  const [reduceCapacity, setReduceCapacity] = useState('')
 
   const selectedProduct = products.find((p: any) => p.id === productId)
   const hasSlots = selectedProduct?.time_slots && selectedProduct.time_slots.length > 0
 
   async function handleBlock() {
     if (!date) return
-    await fetch('/api/admin/block-date', { method: 'POST', headers: authHeaders, body: JSON.stringify({ date, product_id: productId || null, time_slot: timeSlot || null, reason }) })
-    setDate(''); setProductId(''); setTimeSlot(''); setReason(''); onBlocked()
+    await fetch('/api/admin/block-date', { method: 'POST', headers: authHeaders, body: JSON.stringify({ date, product_id: productId || null, time_slot: timeSlot || null, reason: null, reduce_capacity: reduceCapacity ? parseInt(reduceCapacity) : null }) })
+    setDate(''); setProductId(''); setTimeSlot(''); setReduceCapacity(''); onBlocked()
   }
 
   return (
-    <div className="bg-white rounded-xl shadow-sm p-4 flex gap-3 items-end flex-wrap">
-      <div><label className="text-xs text-gray-400 block mb-1">DATUM</label><input type="date" value={date} onChange={e => setDate(e.target.value)} className="px-3 py-2 rounded-lg bg-gray-50 border border-gray-200 text-sm" /></div>
-      <div><label className="text-xs text-gray-400 block mb-1">PRODUCT</label><select value={productId} onChange={e => { setProductId(e.target.value); setTimeSlot('') }} className="px-3 py-2 rounded-lg bg-gray-50 border border-gray-200 text-sm"><option value="">Alle</option>{products.filter(p => p.active).map(p => <option key={p.id} value={p.id}>{p.icon} {p.name}</option>)}</select></div>
-      {hasSlots && <div><label className="text-xs text-gray-400 block mb-1">TIJDSLOT</label><select value={timeSlot} onChange={e => setTimeSlot(e.target.value)} className="px-3 py-2 rounded-lg bg-gray-50 border border-gray-200 text-sm"><option value="">Hele dag</option>{selectedProduct.time_slots.map((s: string) => <option key={s} value={s.substring(0, 5)}>{s.substring(0, 5)}</option>)}</select></div>}
-      {!hasSlots && productId && <div><label className="text-xs text-gray-400 block mb-1">RIT</label><span className="px-3 py-2 text-sm text-gray-500">Hele rit ({selectedProduct?.start_time?.substring(0, 5)})</span></div>}
-      <div className="flex-1"><label className="text-xs text-gray-400 block mb-1">REDEN</label><input type="text" value={reason} onChange={e => setReason(e.target.value)} placeholder="bijv. Storm" className="w-full px-3 py-2 rounded-lg bg-gray-50 border border-gray-200 text-sm" /></div>
-      <button onClick={handleBlock} className="px-5 py-2 bg-cyan-700 text-white rounded-lg text-sm font-medium">Blokkeer</button>
+    <div>
+      <div className="bg-white rounded-xl shadow-sm p-4 flex gap-3 items-end flex-wrap">
+        <div><label className="text-xs text-gray-400 block mb-1">DATUM</label><input type="date" value={date} onChange={e => setDate(e.target.value)} className="px-3 py-2 rounded-lg bg-gray-50 border border-gray-200 text-sm" /></div>
+        <div><label className="text-xs text-gray-400 block mb-1">PRODUCT</label><select value={productId} onChange={e => { setProductId(e.target.value); setTimeSlot('') }} className="px-3 py-2 rounded-lg bg-gray-50 border border-gray-200 text-sm"><option value="">Alle</option>{products.filter(p => p.active).map(p => <option key={p.id} value={p.id}>{p.icon} {p.name}</option>)}</select></div>
+        {hasSlots && <div><label className="text-xs text-gray-400 block mb-1">TIJDSLOT</label><select value={timeSlot} onChange={e => setTimeSlot(e.target.value)} className="px-3 py-2 rounded-lg bg-gray-50 border border-gray-200 text-sm"><option value="">Hele dag</option>{selectedProduct.time_slots.map((s: string) => <option key={s} value={s.substring(0, 5)}>{s.substring(0, 5)}</option>)}</select></div>}
+        <div><label className="text-xs text-gray-400 block mb-1">PAARDEN MINDER</label><input type="number" min="0" max="6" value={reduceCapacity} onChange={e => setReduceCapacity(e.target.value)} placeholder="Leeg = hele rit" className="px-3 py-2 rounded-lg bg-gray-50 border border-gray-200 text-sm w-32" /></div>
+        <button onClick={handleBlock} className="px-5 py-2 bg-cyan-700 text-white rounded-lg text-sm font-medium">Blokkeer</button>
+      </div>
+      <p className="text-xs text-gray-400 mt-2">Leeg = hele rit blokkeren. Getal = alleen capaciteit verminderen.</p>
     </div>
   )
 }
