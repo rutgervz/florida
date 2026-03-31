@@ -396,6 +396,9 @@ export default function BookingPage() {
     if (!selectedProduct) return null
     const totalAmount = selectedProduct.price * riders.length
     const displayTime = hasTimeSlots && selectedTimeSlot ? selectedTimeSlot : (selectedProduct.start_time ? selectedProduct.start_time.substring(0, 5) : '')
+    const arriveTime = hasTimeSlots && selectedTimeSlot
+      ? (() => { const [h, m] = selectedTimeSlot.split(':').map(Number); const t = h * 60 + m - 15; return String(Math.floor(t / 60)).padStart(2, '0') + ':' + String(t % 60).padStart(2, '0') })()
+      : (selectedProduct.arrive_time ? selectedProduct.arrive_time.substring(0, 5) : displayTime)
 
     async function handlePayment() {
       if (!agreedToTerms) { setError('Je moet akkoord gaan met de voorwaarden'); return }
@@ -453,7 +456,7 @@ export default function BookingPage() {
             <h3 className="text-sm font-bold tracking-wider mb-4" style={{ color: '#7A4A2D' }}>VOORWAARDEN</h3>
             <div className="space-y-3 text-sm" style={{ color: '#806040' }}>
               <p>Reservering is niet annuleerbaar na betaling</p>
-              <p>Aanwezig om {selectedProduct.arrive_time ? selectedProduct.arrive_time.substring(0, 5) : displayTime} uur</p>
+              <p>Aanwezig om {arriveTime} uur</p>
               {selectedProduct.warning && <p>{selectedProduct.warning}</p>}
               <p>Maximaal {selectedProduct.max_weight_adult} kg per ruiter</p>
               {selectedProduct.max_age && <p>Maximale leeftijd {selectedProduct.max_age} jaar</p>}

@@ -41,6 +41,9 @@ function ConfirmationContent() {
   const isConfirmed = reservation.status === 'confirmed'
   const product = reservation.products
   const displayTime = reservation.time_slot ? reservation.time_slot.substring(0, 5) : (product.start_time ? product.start_time.substring(0, 5) : '')
+  const arriveTime = reservation.time_slot
+    ? (() => { const [h, m] = reservation.time_slot.substring(0, 5).split(':').map(Number); const t = h * 60 + m - 15; return String(Math.floor(t / 60)).padStart(2, '0') + ':' + String(t % 60).padStart(2, '0') })()
+    : (product.arrive_time ? product.arrive_time.substring(0, 5) : displayTime)
 
   return (
     <div className="min-h-screen bg-white">
@@ -53,7 +56,7 @@ function ConfirmationContent() {
             <div className="bg-blue-50 rounded-xl p-6 text-left">
               <h2 className="text-xl font-serif mb-1">{product.icon} {product.name}</h2>
               <p className="text-gray-500 mb-2">{new Date(reservation.date).toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
-              <p className="text-cyan-700 font-medium mb-4">Starttijd: {displayTime} - Aanwezig om {product.arrive_time ? product.arrive_time.substring(0, 5) : displayTime}</p>
+              <p className="text-cyan-700 font-medium mb-4">Starttijd: {displayTime} - Aanwezig om {arriveTime}</p>
               <div className="border-t border-cyan-200 pt-3 mb-3">
                 {reservation.riders.map((r: any, i: number) => <p key={i} className="text-gray-600 text-sm py-1">{r.name} - {r.age} jr - {r.weight} kg</p>)}
               </div>
