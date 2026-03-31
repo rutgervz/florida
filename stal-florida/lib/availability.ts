@@ -69,7 +69,10 @@ export async function getAvailability(productId: string, date: string, timeSlot?
   const { data: res } = await supabaseAdmin.from('reservations').select('num_adults, num_children').eq('product_id', productId).eq('date', date).in('status', ACTIVE_STATUSES)
   let uA = 0, uC = 0; res?.forEach(r => { uA += r.num_adults; uC += r.num_children })
   const left = red.slotsTotal - uA - uC
-  return { adults_available: Math.max(0, Math.min(red.slotsAdult - uA, left)), children_available: Math.max(0, Math.min(red.slotsChild - uC, left)), total_available: Math.max(0, left), blocked: false }
+  const adultsAvail = Math.max(0, Math.min(red.slotsAdult - uA, left))
+  // Children can fill any remaining slot not taken by adults
+  const childrenAvail = Math.max(0, left)
+  return { adults_available: adultsAvail, children_available: childrenAvail, total_available: Math.max(0, left), blocked: false }
 }
 
 export async function getAvailabilityRange(startDate: string, endDate: string, productId?: string) {
@@ -113,7 +116,7 @@ export async function getAvailabilityRange(startDate: string, endDate: string, p
       const red = applyReductions(product.slots_total, product.slots_adult, product.slots_child, collectReductions(db))
       let uA = 0, uC = 0; allRes?.filter(r => r.product_id === product.id && r.date === date).forEach(r => { uA += r.num_adults; uC += r.num_children })
       const left = red.slotsTotal - uA - uC
-      results[product.id][date] = { adults_available: Math.max(0, Math.min(red.slotsAdult - uA, left)), children_available: Math.max(0, Math.min(red.slotsChild - uC, left)), total_available: Math.max(0, left), blocked: false }
+      results[product.id][date] = { adults_available: Math.max(0, Math.min(red.slotsAdult - uA, left)), children_available: Math.max(0, left), total_available: Math.max(0, left), blocked: false }
     }
   }
   return results
