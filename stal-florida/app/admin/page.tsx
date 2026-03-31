@@ -27,7 +27,7 @@ export default function AdminPage() {
   const [token, setToken] = useState('')
   const [password, setPassword] = useState('')
   const [loginError, setLoginError] = useState('')
-  const [tab, setTab] = useState<'dashboard' | 'planning' | 'products' | 'bookings' | 'offline'>('dashboard')
+  const [tab, setTab] = useState<'dashboard' | 'planning' | 'products' | 'bookings' | 'offline' | 'voorwaarden' | 'begeleiders'>('dashboard')
   const [products, setProducts] = useState<Product[]>([])
   const [bookings, setBookings] = useState<any[]>([])
   const [allBookings, setAllBookings] = useState<any[]>([])
@@ -103,8 +103,8 @@ export default function AdminPage() {
   const planMonday = getMonday(weekOffset)
   const weekDays = Array.from({ length: 6 }, (_, i) => { const d = new Date(planMonday); d.setDate(d.getDate() + i); return d })
   const dayNames = ['Ma', 'Di', 'Wo', 'Do', 'Vr', 'Za']
-  const tabs = ['dashboard', 'planning', 'products', 'bookings', 'offline'] as const
-  const tabLabels: Record<string, string> = { dashboard: 'Overzicht', planning: 'Planning', products: 'Producten', bookings: 'Reserveringen', offline: 'Offline invoer' }
+  const tabs = ['dashboard', 'planning', 'products', 'bookings', 'offline', 'voorwaarden', 'begeleiders'] as const
+  const tabLabels: Record<string, string> = { dashboard: 'Overzicht', planning: 'Planning', products: 'Producten', bookings: 'Reserveringen', offline: 'Offline invoer', voorwaarden: 'Voorwaarden', begeleiders: 'Begeleiders' }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -191,6 +191,14 @@ export default function AdminPage() {
             <p className="text-gray-500 text-sm mb-6">Voor boekingen uit het papieren reserveringsboek.</p>
             <OfflineBookingForm products={products} authHeaders={authHeaders()} onSaved={() => { loadBookings(); loadAllBookings(); loadAvailability() }} />
           </div>
+        )}
+
+        {tab === 'voorwaarden' && (
+          <VoorwaardenEditor authHeaders={authHeaders()} />
+        )}
+
+        {tab === 'begeleiders' && (
+          <GuidesManager authHeaders={authHeaders()} />
         )}
       </main>
     </div>
@@ -370,6 +378,138 @@ function ProductEditor({ product, authHeaders, onSaved }: { product: Product; au
         <button onClick={save} className="px-5 py-2 bg-cyan-700 text-white rounded-lg text-sm font-medium">Opslaan</button>
         <button onClick={() => { setEditing(false); setForm(product) }} className="px-5 py-2 bg-gray-100 rounded-lg text-sm">Annuleren</button>
         <button onClick={async () => { await fetch('/api/admin/products', { method: 'PUT', headers: authHeaders, body: JSON.stringify({ id: product.id, active: !product.active }) }); onSaved() }} className="px-5 py-2 bg-gray-100 rounded-lg text-sm ml-auto">{product.active ? 'Deactiveren' : 'Activeren'}</button>
+      </div>
+    </div>
+  )
+}
+
+function VoorwaardenEditor({ authHeaders }: { authHeaders: any }) {
+  const [text, setText] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [message, setMessage] = useState('')
+
+  useEffect(() => {
+    fetch('/api/admin/settings', { headers: authHeaders })
+      .then(r => r.json())
+      .then(data => { setText(data.voorwaarden || ''); setLoading(false) })
+      .catch(() => setLoading(false))
+  }, [])
+
+  async function save() {
+    setSaving(true); setMessage('')
+    const res = await fetch('/api/admin/settings', {
+      method: 'PUT', headers: authHeaders,
+      body: JSON.stringify({ key: 'voorwaarden', value: text }),
+    })
+    if (res.ok) setMessage('Opgeslagen!')
+    else setMessage('Fout bij opslaan')
+    setSaving(false)
+  }
+
+  if (loading) return <p className="text-gray-400">Laden...</p>
+
+  return (
+    <div>
+      <h1 className="text-2xl font-serif mb-2">Algemene Voorwaarden</h1>
+      <p className="text-gray-500 text-sm mb-4">Deze tekst is zichtbaar voor gasten bij het boeken van een strand- of bosrit. <a href="/voorwaarden" target="_blank" className="underline text-cyan-700">Bekijk pagina</a></p>
+      <textarea
+        value={text}
+        onChange={e => setText(e.target.value)}
+        rows={20}
+        className="w-full px-4 py-3 rounded-xl bg-white border border-gray-200 text-sm font-mono focus:outline-none focus:border-cyan-700 shadow-sm"
+        placeholder="Typ hier de algemene voorwaarden..."
+      />
+      <div className="flex items-center gap-4 mt-4">
+        <button onClick={save} disabled={saving} className="px-6 py-3 bg-cyan-700 text-white rounded-lg font-medium disabled:opacity-50">
+          {saving ? 'Opslaan...' : 'Opslaan'}
+        </button>
+        {message && <span className={'text-sm ' + (message.startsWith('Fout') ? 'text-red-500' : 'text-green-600')}>{message}</span>}
+      </div>
+    </div>
+  )
+}
+
+function GuidesManager({ authHeaders }: { authHeaders: any }) {
+  const [guides, setGuides] = useState<any[]>([])
+  const [newName, setNewName] = useState('')
+  const [newPhone, setNewPhone] = useState('')
+  const [editing, setEditing] = useState<string | null>(null)
+  const [editName, setEditName] = useState('')
+  const [editPhone, setEditPhone] = useState('')
+  const [message, setMessage] = useState('')
+
+  useEffect(() => { loadGuides() }, [])
+
+  async function loadGuides() {
+    const r = await fetch('/api/admin/guides', { headers: authHeaders })
+    if (r.ok) setGuides(await r.json())
+  }
+
+  async function addGuide() {
+    if (!newName || !newPhone) { setMessage('Naam en telefoonnummer zijn verplicht'); return }
+    const r = await fetch('/api/admin/guides', { method: 'POST', headers: authHeaders, body: JSON.stringify({ name: newName, phone: newPhone }) })
+    if (r.ok) { setNewName(''); setNewPhone(''); setMessage(''); loadGuides() }
+    else { const d = await r.json(); setMessage(d.error || 'Fout') }
+  }
+
+  async function saveEdit(id: string) {
+    await fetch('/api/admin/guides', { method: 'PUT', headers: authHeaders, body: JSON.stringify({ id, name: editName, phone: editPhone }) })
+    setEditing(null); loadGuides()
+  }
+
+  async function toggleActive(g: any) {
+    if (g.active) {
+      if (!confirm('Weet je zeker dat je ' + g.name + ' wilt deactiveren?')) return
+      await fetch('/api/admin/guides?id=' + g.id, { method: 'DELETE', headers: authHeaders })
+    } else {
+      await fetch('/api/admin/guides', { method: 'PUT', headers: authHeaders, body: JSON.stringify({ id: g.id, active: true }) })
+    }
+    loadGuides()
+  }
+
+  return (
+    <div>
+      <h1 className="text-2xl font-serif mb-2">Begeleiders</h1>
+      <p className="text-gray-500 text-sm mb-6">
+        Beheer begeleiders. Zij kunnen zich inschrijven op ritten via{' '}
+        <a href="/begeleiders" target="_blank" className="underline text-cyan-700">reserveren.boerderijflorida.nl/begeleiders</a>
+      </p>
+
+      <div className="bg-white rounded-xl shadow-sm p-4 mb-6 flex gap-3 items-end flex-wrap">
+        <div><label className="text-xs text-gray-400 block mb-1">NAAM</label><input type="text" value={newName} onChange={e => setNewName(e.target.value)} placeholder="Voornaam" className="px-3 py-2 rounded-lg bg-gray-50 border border-gray-200 text-sm" /></div>
+        <div><label className="text-xs text-gray-400 block mb-1">TELEFOON</label><input type="tel" value={newPhone} onChange={e => setNewPhone(e.target.value)} placeholder="06-12345678" className="px-3 py-2 rounded-lg bg-gray-50 border border-gray-200 text-sm" /></div>
+        <button onClick={addGuide} className="px-5 py-2 bg-cyan-700 text-white rounded-lg text-sm font-medium">Toevoegen</button>
+        {message && <span className="text-sm text-red-500">{message}</span>}
+      </div>
+
+      <div className="space-y-2">
+        {guides.map(g => (
+          <div key={g.id} className={'bg-white rounded-xl shadow-sm p-4 flex justify-between items-center ' + (!g.active ? 'opacity-50' : '')}>
+            {editing === g.id ? (
+              <div className="flex gap-2 items-center flex-1">
+                <input value={editName} onChange={e => setEditName(e.target.value)} className="px-3 py-1 rounded-lg bg-gray-50 border border-gray-200 text-sm" />
+                <input value={editPhone} onChange={e => setEditPhone(e.target.value)} className="px-3 py-1 rounded-lg bg-gray-50 border border-gray-200 text-sm" />
+                <button onClick={() => saveEdit(g.id)} className="px-3 py-1 bg-cyan-700 text-white rounded-lg text-xs">Opslaan</button>
+                <button onClick={() => setEditing(null)} className="px-3 py-1 bg-gray-100 rounded-lg text-xs">Annuleer</button>
+              </div>
+            ) : (
+              <>
+                <div>
+                  <span className="font-medium">{g.name}</span>
+                  <span className="text-gray-400 text-sm ml-3">{g.phone}</span>
+                  {!g.active && <span className="ml-2 text-xs bg-gray-200 text-gray-500 px-2 py-0.5 rounded-full">Inactief</span>}
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => { setEditing(g.id); setEditName(g.name); setEditPhone(g.phone) }} className="text-sm text-gray-400 hover:text-gray-600">Bewerk</button>
+                  <button onClick={() => toggleActive(g)} className={'text-sm ' + (g.active ? 'text-red-400 hover:text-red-600' : 'text-green-600 hover:text-green-700')}>
+                    {g.active ? 'Deactiveer' : 'Activeer'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        ))}
       </div>
     </div>
   )

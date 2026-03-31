@@ -1,6 +1,18 @@
 'use client'
 
+import { useState, useEffect } from 'react'
+
 export default function VoorwaardenPage() {
+  const [text, setText] = useState('')
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetch('/api/admin/settings')
+      .then(r => r.json())
+      .then(data => { setText(data.voorwaarden || ''); setLoading(false) })
+      .catch(() => setLoading(false))
+  }, [])
+
   return (
     <div className="min-h-screen bg-white">
       <nav className="bg-gray-900 text-white px-6 py-4">
@@ -11,15 +23,18 @@ export default function VoorwaardenPage() {
       </nav>
       <main className="max-w-3xl mx-auto px-6 py-8">
         <h1 className="text-3xl font-serif mb-6">Algemene Voorwaarden</h1>
-        <iframe
-          src="/voorwaarden.pdf"
-          className="w-full border border-gray-200 rounded-xl"
-          style={{ height: '80vh' }}
-          title="Algemene Voorwaarden Stal Florida"
-        />
-        <p className="text-sm text-gray-400 mt-4 text-center">
-          <a href="/voorwaarden.pdf" download className="underline">Download als PDF</a>
-        </p>
+        {loading ? (
+          <p className="text-gray-400">Laden...</p>
+        ) : (
+          <div className="prose prose-gray max-w-none">
+            {text.split('\n').map((line, i) => (
+              line.trim() === '' ? <br key={i} /> :
+              line.match(/^\d+\./) ? <h3 key={i} className="text-lg font-serif mt-6 mb-2">{line}</h3> :
+              line === line.toUpperCase() && line.length > 5 ? <h2 key={i} className="text-xl font-serif mt-8 mb-3">{line}</h2> :
+              <p key={i} className="text-gray-600 mb-2">{line}</p>
+            ))}
+          </div>
+        )}
       </main>
     </div>
   )

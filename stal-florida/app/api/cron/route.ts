@@ -14,8 +14,33 @@ function getMonday(d: Date) {
   return new Date(d.getFullYear(), d.getMonth(), diff)
 }
 
+async function sendGuideSMS(phone: string, message: string) {
+  const apiKey = process.env.SPRYNG_API_KEY
+  if (!apiKey) {
+    console.log('Spryng not configured, skipping SMS to', phone)
+    return
+  }
+  try {
+    // Format phone: remove leading 0, add 31 country code
+    let recipient = phone.replace(/[\s\-()]/g, '')
+    if (recipient.startsWith('0')) recipient = '31' + recipient.substring(1)
+    if (recipient.startsWith('+')) recipient = recipient.substring(1)
+
+    const { Spryng } = await import('spryng')
+    const spryng = new Spryng(apiKey)
+    await spryng.message.send({
+      encoding: 'auto',
+      body: message,
+      route: 'business',
+      originator: 'StalFlorida',
+      recipients: [recipient],
+    })
+  } catch (err) {
+    console.error('SMS error to', phone, err)
+  }
+}
+
 export async function GET(request: NextRequest) {
-  // Verify cron secret
   const authHeader = request.headers.get('authorization')
   if (authHeader !== 'Bearer ' + process.env.CRON_SECRET) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -29,14 +54,15 @@ export async function GET(request: NextRequest) {
 
     if (type === 'daily') {
       await sendDailyReport(now)
+      await sendGuideReminders(now)
     } else if (type === 'weekly') {
       await sendWeeklyReport(now)
     }
 
     return NextResponse.json({ sent: true, type })
   } catch (error) {
-    console.error('Cron email error:', error)
-    return NextResponse.json({ error: 'Failed to send report' }, { status: 500 })
+    console.error('Cron error:', error)
+    return NextResponse.json({ error: 'Failed' }, { status: 500 })
   }
 }
 
@@ -175,4 +201,52 @@ async function sendWeeklyReport(now: Date) {
     subject: 'Weekoverzicht - ' + lastWeekRiders + ' ruiters, EUR ' + lastWeekRevenue.toFixed(0),
     html,
   })
+}
+
+async function sendGuideReminders(now: Date) {
+  const today = fmt(now)
+
+  // Get today's rides
+  const { data: todayRides } = await supabaseAdmin
+    .from('reservations')
+    .select('id, date, time_slot, products(name, icon, start_time)')
+    .eq('date', today)
+    .in('status', ['confirmed', 'offline'])
+
+  if (!todayRides || todayRides.length === 0) return
+
+  // Get all assignments for today's rides
+  const rideIds = todayRides.map(r => r.id)
+  const { data: assignments } = await supabaseAdmin
+    .from('guide_assignments')
+    .select('reservation_id, guides(name, phone)')
+    .in('reservation_id', rideIds)
+
+  if (!assignments || assignments.length === 0) return
+
+  // Group rides by guide
+  const guideRides: Record<string, { name: string; phone: string; rides: string[] }> = {}
+
+  for (const a of assignments) {
+    const guide = a.guides as any
+    if (!guide || !guide.phone) continue
+
+    if (!guideRides[guide.phone]) {
+      guideRides[guide.phone] = { name: guide.name, phone: guide.phone, rides: [] }
+    }
+
+    const ride = todayRides.find(r => r.id === a.reservation_id)
+    if (ride) {
+      const time = ride.time_slot ? ride.time_slot.substring(0, 5) : ((ride.products as any)?.start_time ? (ride.products as any).start_time.substring(0, 5) : '')
+      guideRides[guide.phone].rides.push(time + ' ' + (ride.products as any)?.icon + ' ' + (ride.products as any)?.name)
+    }
+  }
+
+  // Send SMS to each guide
+  const dateLabel = new Date(today).toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long' })
+
+  for (const g of Object.values(guideRides)) {
+    const msg = 'Hoi ' + g.name + '! Je ritten vandaag (' + dateLabel + '):\n' + g.rides.join('\n') + '\n\nStal Florida'
+    await sendGuideSMS(g.phone, msg)
+  }
 }
