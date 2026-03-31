@@ -79,8 +79,8 @@ export default function AdminPage() {
 
   const today = fmt(new Date())
   const monday = getMonday(0); const sunday = new Date(monday); sunday.setDate(sunday.getDate() + 6)
-  const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1)
-  const monthEnd = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0)
+  const monthStart = new Date()
+  const monthEnd = new Date(); monthEnd.setDate(monthEnd.getDate() + 30)
 
   const activeBookings = allBookings.filter(b => b.status === 'confirmed' || b.status === 'offline')
   const todayBookings = activeBookings.filter(b => b.date === today)
@@ -131,14 +131,14 @@ export default function AdminPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
               <div className="bg-white rounded-xl shadow-sm p-6"><div className="text-xs text-gray-400 font-medium tracking-wider mb-1">VANDAAG</div><div className="text-3xl font-serif" style={{ color: '#2D6A7A' }}>{todayBookings.length}</div><div className="text-sm text-gray-500">{todayRiders} ruiters - EUR {todayRevenue.toFixed(0)}</div></div>
               <div className="bg-white rounded-xl shadow-sm p-6"><div className="text-xs text-gray-400 font-medium tracking-wider mb-1">DEZE WEEK</div><div className="text-3xl font-serif" style={{ color: '#2D5A3A' }}>{weekBookings.length}</div><div className="text-sm text-gray-500">{weekRiders} ruiters - EUR {weekRevenue.toFixed(0)}</div></div>
-              <div className="bg-white rounded-xl shadow-sm p-6"><div className="text-xs text-gray-400 font-medium tracking-wider mb-1">DEZE MAAND</div><div className="text-3xl font-serif" style={{ color: '#7A4A2D' }}>{monthBookings.length}</div><div className="text-sm text-gray-500">{monthRiders} ruiters - EUR {monthRevenue.toFixed(0)}</div></div>
+              <div className="bg-white rounded-xl shadow-sm p-6"><div className="text-xs text-gray-400 font-medium tracking-wider mb-1">KOMENDE 30 DAGEN</div><div className="text-3xl font-serif" style={{ color: '#7A4A2D' }}>{monthBookings.length}</div><div className="text-sm text-gray-500">{monthRiders} ruiters - EUR {monthRevenue.toFixed(0)}</div></div>
             </div>
             <h2 className="text-lg font-serif mb-3">Vandaag ({new Date().toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long' })})</h2>
             {todayBookings.length === 0 ? <div className="bg-white rounded-xl shadow-sm p-6 text-gray-400 text-center mb-6">Geen boekingen vandaag</div> : <div className="space-y-3 mb-6">{todayBookings.map((b: any) => <BookingCard key={b.id} booking={b} onCancel={cancelBooking} />)}</div>}
             <h2 className="text-lg font-serif mb-3">Deze week</h2>
             {weekBookings.length === 0 ? <div className="bg-white rounded-xl shadow-sm p-6 text-gray-400 text-center mb-6">Geen boekingen deze week</div> : <div className="space-y-3 mb-6">{weekBookings.map((b: any) => <BookingCard key={b.id} booking={b} onCancel={cancelBooking} />)}</div>}
-            <h2 className="text-lg font-serif mb-3">Deze maand</h2>
-            {monthBookings.length === 0 ? <div className="bg-white rounded-xl shadow-sm p-6 text-gray-400 text-center">Geen boekingen deze maand</div> : <div className="space-y-3">{monthBookings.map((b: any) => <BookingCard key={b.id} booking={b} onCancel={cancelBooking} />)}</div>}
+            <h2 className="text-lg font-serif mb-3">Komende 30 dagen</h2>
+            {monthBookings.length === 0 ? <div className="bg-white rounded-xl shadow-sm p-6 text-gray-400 text-center">Geen boekingen komende 30 dagen</div> : <div className="space-y-3">{monthBookings.map((b: any) => <BookingCard key={b.id} booking={b} onCancel={cancelBooking} />)}</div>}
           </div>
         )}
 
