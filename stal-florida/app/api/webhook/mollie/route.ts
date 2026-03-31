@@ -73,7 +73,16 @@ export async function POST(request: NextRequest) {
               productIcon: product.icon,
               date: reservation.date,
               startTime: product.start_time ? product.start_time.substring(0, 5) : '',
-              arriveTime: product.arrive_time ? product.arrive_time.substring(0, 5) : (product.start_time ? product.start_time.substring(0, 5) : ''),
+              arriveTime: reservation.time_slot
+                ? (() => {
+                    // For time slot products: arrive 15 min before the slot
+                    const [h, m] = reservation.time_slot.substring(0, 5).split(':').map(Number)
+                    const totalMin = h * 60 + m - 15
+                    const ah = Math.floor(totalMin / 60)
+                    const am = totalMin % 60
+                    return String(ah).padStart(2, '0') + ':' + String(am).padStart(2, '0')
+                  })()
+                : (product.arrive_time ? product.arrive_time.substring(0, 5) : (product.start_time ? product.start_time.substring(0, 5) : '')),
               duration: product.duration_minutes,
               riders: reservation.riders,
               totalAmount: reservationAmount,
