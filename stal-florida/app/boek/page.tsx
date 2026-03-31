@@ -457,7 +457,7 @@ export default function BookingPage() {
               {selectedProduct.warning && <p>{selectedProduct.warning}</p>}
               <p>Maximaal {selectedProduct.max_weight_adult} kg per ruiter</p>
               {selectedProduct.max_age && <p>Maximale leeftijd {selectedProduct.max_age} jaar</p>}
-              <p>Helm wordt verstrekt door de stal</p>
+              <p>Cap wordt verstrekt door de stal. Zelf meenemen mag ook.</p>
             </div>
             <label className="flex items-start gap-3 mt-6 cursor-pointer">
               <input type="checkbox" checked={agreedToTerms} onChange={e => setAgreedToTerms(e.target.checked)} className="mt-1 w-4 h-4" />
