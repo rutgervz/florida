@@ -26,15 +26,23 @@ async function sendGuideSMS(phone: string, message: string) {
     if (recipient.startsWith('0')) recipient = '31' + recipient.substring(1)
     if (recipient.startsWith('+')) recipient = recipient.substring(1)
 
-    const { Spryng } = await import('spryng')
-    const spryng = new Spryng(apiKey)
-    await spryng.message.send({
-      encoding: 'auto',
-      body: message,
-      route: 'business',
-      originator: 'StalFlorida',
-      recipients: [recipient],
+    const res = await fetch('https://rest.spryngsms.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + apiKey,
+      },
+      body: JSON.stringify({
+        encoding: 'auto',
+        body: message,
+        route: 'business',
+        originator: 'StalFlorida',
+        recipients: [recipient],
+      }),
     })
+    if (!res.ok) {
+      console.error('Spryng SMS error:', res.status, await res.text())
+    }
   } catch (err) {
     console.error('SMS error to', phone, err)
   }
