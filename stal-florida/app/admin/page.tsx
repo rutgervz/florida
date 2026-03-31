@@ -36,6 +36,7 @@ export default function AdminPage() {
   const [availability, setAvailability] = useState<any>({})
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+  const [bookingsView, setBookingsView] = useState<'current' | 'archive'>('current')
 
   useEffect(() => { const s = sessionStorage.getItem('admin_token'); if (s) setToken(s) }, [])
 
@@ -99,6 +100,9 @@ export default function AdminPage() {
     const mst = !statusFilter || b.status === statusFilter
     return ms && mst
   })
+
+  const currentBookings = filteredBookings.filter(b => b.date >= today)
+  const archiveBookings = filteredBookings.filter(b => b.date < today)
 
   const planMonday = getMonday(weekOffset)
   const weekDays = Array.from({ length: 6 }, (_, i) => { const d = new Date(planMonday); d.setDate(d.getDate() + i); return d })
@@ -176,12 +180,21 @@ export default function AdminPage() {
         {tab === 'bookings' && (
           <div>
             <h1 className="text-2xl font-serif mb-4">Reserveringen</h1>
+            <div className="flex gap-2 mb-4">
+              <button onClick={() => setBookingsView('current')} className={'px-4 py-2 rounded-lg text-sm font-medium ' + (bookingsView === 'current' ? 'bg-cyan-700 text-white' : 'bg-white text-gray-500 shadow-sm')}>Actueel ({currentBookings.length})</button>
+              <button onClick={() => setBookingsView('archive')} className={'px-4 py-2 rounded-lg text-sm font-medium ' + (bookingsView === 'archive' ? 'bg-cyan-700 text-white' : 'bg-white text-gray-500 shadow-sm')}>Archief ({archiveBookings.length})</button>
+            </div>
             <div className="bg-white rounded-xl shadow-sm p-4 mb-6 flex gap-3 flex-wrap items-end">
               <div className="flex-1 min-w-[200px]"><label className="text-xs text-gray-400 block mb-1">ZOEKEN</label><input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Naam, e-mail of telefoon..." className="w-full px-3 py-2 rounded-lg bg-gray-50 border border-gray-200 text-sm focus:outline-none focus:border-cyan-700" /></div>
               <div><label className="text-xs text-gray-400 block mb-1">STATUS</label><select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="px-3 py-2 rounded-lg bg-gray-50 border border-gray-200 text-sm"><option value="">Actief</option><option value="confirmed">Bevestigd</option><option value="pending">Wachtend</option><option value="offline">Offline</option><option value="cancelled">Geannuleerd</option><option value="expired">Verlopen</option></select></div>
-              <div className="text-sm text-gray-400">{filteredBookings.length} resultaten</div>
+              <div className="text-sm text-gray-400">{(bookingsView === 'current' ? currentBookings : archiveBookings).length} resultaten</div>
             </div>
-            {filteredBookings.length === 0 ? <div className="bg-white rounded-xl shadow-sm p-6 text-gray-400 text-center">Geen reserveringen gevonden</div> : <div className="space-y-3">{filteredBookings.map((b: any) => <BookingCard key={b.id} booking={b} onCancel={cancelBooking} />)}</div>}
+            {(() => {
+              const list = bookingsView === 'current' ? currentBookings : archiveBookings
+              return list.length === 0
+                ? <div className="bg-white rounded-xl shadow-sm p-6 text-gray-400 text-center">{bookingsView === 'current' ? 'Geen actuele reserveringen' : 'Geen reserveringen in archief'}</div>
+                : <div className="space-y-3">{list.map((b: any) => <BookingCard key={b.id} booking={b} onCancel={cancelBooking} />)}</div>
+            })()}
           </div>
         )}
 
