@@ -224,6 +224,10 @@ function BookingCard({ booking: b, onCancel }: { booking: any; onCancel: (id: st
   const statusLabels: Record<string, string> = { confirmed: 'Betaald', pending: 'Wachtend', offline: 'Offline', cancelled: 'Geannuleerd', expired: 'Verlopen' }
   const borderColors: Record<string, string> = { confirmed: '#2D5A3A', pending: '#7A4A2D', offline: '#2D6A7A', cancelled: '#999', expired: '#999' }
 
+  const guideNames = (b.guide_assignments || []).map((ga: any) => ga.guides?.name).filter(Boolean)
+  const hasGuide = guideNames.length > 0
+  const isActive = ['confirmed', 'offline'].includes(b.status)
+
   return (
     <div className="bg-white rounded-xl shadow-sm p-5 border-l-4" style={{ borderLeftColor: borderColors[b.status] || '#999' }}>
       <div className="flex justify-between items-start">
@@ -233,13 +237,30 @@ function BookingCard({ booking: b, onCancel }: { booking: any; onCancel: (id: st
         </div>
         <div className="text-right">
           <span className="text-xl font-serif">EUR {parseFloat(b.total_amount).toFixed(0)}</span>
-          <div><span className={'text-xs px-2 py-0.5 rounded-full ' + (statusColors[b.status] || '')}>{statusLabels[b.status] || b.status}</span></div>
+          <div className="flex gap-1 justify-end mt-1">
+            <span className={'text-xs px-2 py-0.5 rounded-full ' + (statusColors[b.status] || '')}>{statusLabels[b.status] || b.status}</span>
+          </div>
         </div>
       </div>
       <div className="mt-2 text-sm text-gray-500">{b.riders?.map((r: any, i: number) => <span key={i}>{r.name} ({r.age}jr, {r.weight}kg){i < b.riders.length - 1 ? ' + ' : ''}</span>)}</div>
-      <div className="mt-1 text-xs text-gray-400 flex justify-between items-center">
-        <span>{b.contact_name} - {b.contact_email}{b.contact_phone ? ' - ' + b.contact_phone : ''}</span>
-        {['confirmed', 'pending', 'offline'].includes(b.status) && <button onClick={() => onCancel(b.id)} className="text-red-400 hover:text-red-600 ml-4">Annuleren</button>}
+      <div className="mt-2 flex justify-between items-center">
+        <div className="flex items-center gap-2">
+          {isActive && (
+            hasGuide ? (
+              <span className="text-xs px-2 py-1 rounded-full bg-green-50 text-green-700 font-medium flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-green-500 inline-block"></span>
+                {guideNames.join(', ')}
+              </span>
+            ) : (
+              <span className="text-xs px-2 py-1 rounded-full bg-red-50 text-red-600 font-medium flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-red-500 inline-block"></span>
+                Geen begeleider
+              </span>
+            )
+          )}
+          <span className="text-xs text-gray-400">{b.contact_name} - {b.contact_email}{b.contact_phone ? ' - ' + b.contact_phone : ''}</span>
+        </div>
+        {['confirmed', 'pending', 'offline'].includes(b.status) && <button onClick={() => onCancel(b.id)} className="text-red-400 hover:text-red-600 text-xs ml-4">Annuleren</button>}
       </div>
     </div>
   )
