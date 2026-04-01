@@ -68,25 +68,31 @@ export async function POST(request: NextRequest) {
   const numChildren = classifiedRiders.filter(r => r.type === 'child').length
   const totalAmount = product.price * classifiedRiders.length
 
-  const { data: reservation, error } = await supabaseAdmin
-    .from('reservations')
-    .insert({
-      product_id,
-      date,
-      time_slot: time_slot || null,
-      status: 'offline',
-      riders: classifiedRiders,
-      num_adults: numAdults,
-      num_children: numChildren,
-      contact_name: sanitizeName(contact_name) || classifiedRiders[0]?.name || '',
-      contact_email: contact_email || 'offline@stalflorida.nl',
-      contact_phone: contact_phone ? sanitizeString(contact_phone) : null,
-      total_amount: totalAmount,
-    })
-    .select().single()
+  // Use atomic function for offline bookings too (prevents overbooking)
+  const { data: atomicResult, error: atomicError } = await supabaseAdmin.rpc('create_reservation_atomic', {
+    p_product_id: product_id,
+    p_date: date,
+    p_time_slot: time_slot || null,
+    p_status: 'offline',
+    p_riders: classifiedRiders,
+    p_num_adults: numAdults,
+    p_num_children: numChildren,
+    p_contact_name: sanitizeName(contact_name) || classifiedRiders[0]?.name || '',
+    p_contact_email: contact_email || 'offline@stalflorida.nl',
+    p_contact_phone: contact_phone ? sanitizeString(contact_phone) : null,
+    p_total_amount: totalAmount,
+    p_expires_at: null,
+  })
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(reservation)
+  if (atomicError) {
+    const msg = atomicError.message || ''
+    if (msg.includes('Niet genoeg plekken') || msg.includes('niet beschikbaar')) {
+      return NextResponse.json({ error: msg }, { status: 400 })
+    }
+    return NextResponse.json({ error: atomicError.message }, { status: 500 })
+  }
+
+  return NextResponse.json({ id: atomicResult, status: 'offline' })
 }
 
 export async function DELETE(request: NextRequest) {

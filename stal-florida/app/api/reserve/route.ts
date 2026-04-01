@@ -82,48 +82,46 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Check availability (with time slot if applicable)
+    // Check availability (quick pre-check for user feedback, not authoritative)
     const availability = await getAvailability(product_id, date, time_slot || undefined)
-
     if (availability.blocked) return NextResponse.json({ error: 'Deze datum is niet beschikbaar' }, { status: 400 })
-
-    // For time slot products, check total availability for the specific slot
-    if (product.time_slots && product.time_slots.length > 0) {
-      if (numAdults + numChildren > availability.total_available) {
-        return NextResponse.json({ error: 'Niet genoeg plekken voor dit tijdslot. Er zijn nog ' + availability.total_available + ' plekken.' }, { status: 400 })
-      }
-    } else {
-      if (numAdults > availability.adults_available) return NextResponse.json({ error: 'Niet genoeg plekken voor volwassenen. Er zijn nog ' + availability.adults_available + ' plekken.' }, { status: 400 })
-      if (numChildren > availability.children_available) return NextResponse.json({ error: 'Niet genoeg plekken voor kinderen. Er zijn nog ' + availability.children_available + ' plekken.' }, { status: 400 })
-      if (numAdults + numChildren > availability.total_available) return NextResponse.json({ error: 'Niet genoeg plekken. Er zijn nog ' + availability.total_available + ' plekken in totaal.' }, { status: 400 })
-    }
 
     const totalAmount = product.price * classifiedRiders.length
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000)
 
-    const { data: reservation, error: reservationError } = await supabaseAdmin
-      .from('reservations')
-      .insert({
-        product_id,
-        date,
-        time_slot: time_slot || null,
-        status: 'pending',
-        riders: classifiedRiders,
-        num_adults: numAdults,
-        num_children: numChildren,
-        contact_name: sanitizeName(contact_name || classifiedRiders[0]?.name || ''),
-        contact_email: contact_email.trim().toLowerCase().substring(0, 254),
-        contact_phone: contact_phone ? sanitizeString(contact_phone) : null,
-        total_amount: totalAmount,
-        expires_at: expiresAt.toISOString(),
-      })
-      .select().single()
+    const safeName = sanitizeName(contact_name || classifiedRiders[0]?.name || '')
+    const safeEmail = contact_email.trim().toLowerCase().substring(0, 254)
+    const safePhone = contact_phone ? sanitizeString(contact_phone) : null
 
-    if (reservationError || !reservation) {
-      console.error('Reservation insert error:', reservationError)
-      return NextResponse.json({ error: 'Kon reservering niet aanmaken' }, { status: 500 })
+    // Atomic reservation: checks capacity AND inserts in one transaction
+    // This prevents race conditions where two people book the last slot simultaneously
+    const { data: atomicResult, error: atomicError } = await supabaseAdmin.rpc('create_reservation_atomic', {
+      p_product_id: product_id,
+      p_date: date,
+      p_time_slot: time_slot || null,
+      p_status: 'pending',
+      p_riders: classifiedRiders,
+      p_num_adults: numAdults,
+      p_num_children: numChildren,
+      p_contact_name: safeName,
+      p_contact_email: safeEmail,
+      p_contact_phone: safePhone,
+      p_total_amount: totalAmount,
+      p_expires_at: expiresAt.toISOString(),
+    })
+
+    if (atomicError) {
+      console.error('Atomic reservation error:', atomicError)
+      const msg = atomicError.message || ''
+      if (msg.includes('Niet genoeg plekken') || msg.includes('niet beschikbaar')) {
+        return NextResponse.json({ error: msg }, { status: 400 })
+      }
+      return NextResponse.json({ error: 'Kon reservering niet aanmaken. Probeer het opnieuw.' }, { status: 500 })
     }
 
+    const reservationId = atomicResult
+
+    // Update with Mollie payment
     try {
       const mollieClient = getMollieClient()
       const appUrl = process.env.NEXT_PUBLIC_APP_URL
@@ -135,17 +133,17 @@ export async function POST(request: NextRequest) {
       const payment = await mollieClient.payments.create({
         amount: { currency: 'EUR', value: totalAmount.toFixed(2) },
         description: product.name + ' - ' + dateFormatted + timeDesc + ' - ' + classifiedRiders.length + ' ruiter(s)',
-        redirectUrl: appUrl + '/boek/bevestiging?id=' + reservation.id,
+        redirectUrl: appUrl + '/boek/bevestiging?id=' + reservationId,
         webhookUrl: appUrl + '/api/webhook/mollie',
-        metadata: { reservation_id: reservation.id },
+        metadata: { reservation_id: reservationId },
       })
 
-      await supabaseAdmin.from('reservations').update({ mollie_payment_id: payment.id }).eq('id', reservation.id)
+      await supabaseAdmin.from('reservations').update({ mollie_payment_id: payment.id }).eq('id', reservationId)
 
-      return NextResponse.json({ reservation_id: reservation.id, checkout_url: payment.getCheckoutUrl() })
+      return NextResponse.json({ reservation_id: reservationId, checkout_url: payment.getCheckoutUrl() })
     } catch (mollieError) {
       console.error('Mollie payment creation error:', mollieError)
-      await supabaseAdmin.from('reservations').update({ status: 'expired' }).eq('id', reservation.id)
+      await supabaseAdmin.from('reservations').update({ status: 'expired' }).eq('id', reservationId)
       return NextResponse.json({ error: 'Kon betaling niet starten. Probeer het opnieuw.' }, { status: 500 })
     }
   } catch (error) {

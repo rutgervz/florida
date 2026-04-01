@@ -3,6 +3,9 @@ import type { Availability } from './types'
 
 const ACTIVE_STATUSES = ['pending', 'confirmed', 'offline']
 
+// Filter string for Supabase: only count pending if not expired
+const ACTIVE_FILTER = 'and(status.in.(confirmed,offline)),and(status.eq.pending,expires_at.gt.now())'
+
 interface Reduction { amount: number; type: string | null }
 
 function applyReductions(slotsTotal: number, slotsAdult: number, slotsChild: number, reductions: Reduction[]) {
@@ -44,12 +47,12 @@ export async function getAvailability(productId: string, date: string, timeSlot?
       const slotBlock = blocks?.find(b => !b.reduce_capacity && b.time_slot && b.time_slot.substring(0, 5) === timeSlot.substring(0, 5))
       if (slotBlock) return { adults_available: 0, children_available: 0, total_available: 0, blocked: true }
       const red = applyReductions(product.slots_total, product.slots_adult, product.slots_child, collectReductions(blocks || [], timeSlot.substring(0, 5)))
-      const { data: res } = await supabaseAdmin.from('reservations').select('num_adults, num_children').eq('product_id', productId).eq('date', date).eq('time_slot', timeSlot).in('status', ACTIVE_STATUSES)
+      const { data: res } = await supabaseAdmin.from('reservations').select('num_adults, num_children').eq('product_id', productId).eq('date', date).eq('time_slot', timeSlot).or(ACTIVE_FILTER)
       let used = 0; res?.forEach(r => { used += r.num_adults + r.num_children })
       const left = red.slotsTotal - used
       return { adults_available: Math.max(0, Math.min(red.slotsAdult, left)), children_available: Math.max(0, Math.min(red.slotsChild, left)), total_available: Math.max(0, left), blocked: false }
     }
-    const { data: res } = await supabaseAdmin.from('reservations').select('time_slot, num_adults, num_children').eq('product_id', productId).eq('date', date).in('status', ACTIVE_STATUSES)
+    const { data: res } = await supabaseAdmin.from('reservations').select('time_slot, num_adults, num_children').eq('product_id', productId).eq('date', date).or(ACTIVE_FILTER)
     const slots: Record<string, { total_available: number; blocked: boolean }> = {}; let anyAvail = 0
     for (const slot of product.time_slots) {
       const sk = slot.substring(0, 5)
@@ -66,7 +69,7 @@ export async function getAvailability(productId: string, date: string, timeSlot?
   if (slotBlock) return { adults_available: 0, children_available: 0, total_available: 0, blocked: true }
 
   const red = applyReductions(product.slots_total, product.slots_adult, product.slots_child, collectReductions(blocks || []))
-  const { data: res } = await supabaseAdmin.from('reservations').select('num_adults, num_children').eq('product_id', productId).eq('date', date).in('status', ACTIVE_STATUSES)
+  const { data: res } = await supabaseAdmin.from('reservations').select('num_adults, num_children').eq('product_id', productId).eq('date', date).or(ACTIVE_FILTER)
   let uA = 0, uC = 0; res?.forEach(r => { uA += r.num_adults; uC += r.num_children })
   const left = red.slotsTotal - uA - uC
   const adultsAvail = Math.max(0, Math.min(red.slotsAdult - uA, left))
@@ -86,7 +89,7 @@ export async function getAvailabilityRange(startDate: string, endDate: string, p
   while (cur <= end) { const y = cur.getFullYear(); const m = String(cur.getMonth() + 1).padStart(2, '0'); const dd = String(cur.getDate()).padStart(2, '0'); dates.push(y + '-' + m + '-' + dd); cur.setDate(cur.getDate() + 1) }
 
   const { data: allBlocks } = await supabaseAdmin.from('blocked_dates').select('*').gte('date', startDate).lte('date', endDate)
-  const { data: allRes } = await supabaseAdmin.from('reservations').select('product_id, date, time_slot, num_adults, num_children').gte('date', startDate).lte('date', endDate).in('status', ACTIVE_STATUSES)
+  const { data: allRes } = await supabaseAdmin.from('reservations').select('product_id, date, time_slot, num_adults, num_children').gte('date', startDate).lte('date', endDate).or(ACTIVE_FILTER)
 
   // Normalize dates from Supabase (could be '2026-04-01' or '2026-04-01T00:00:00')
   const normDate = (d: string) => d ? d.substring(0, 10) : ''
