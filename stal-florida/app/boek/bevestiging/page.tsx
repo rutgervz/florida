@@ -12,20 +12,15 @@ function ConfirmationContent() {
 
   useEffect(() => {
     if (!reservationId) return
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    if (!supabaseUrl || !supabaseKey) return
     const interval = setInterval(async () => {
       try {
-        const res = await fetch(
-          supabaseUrl + '/rest/v1/reservations?id=eq.' + reservationId + '&select=*,products(name,icon,start_time,arrive_time,duration_minutes)',
-          { headers: { apikey: supabaseKey, Authorization: 'Bearer ' + supabaseKey } }
-        )
+        const res = await fetch('/api/reservation?id=' + reservationId)
+        if (!res.ok) return
         const data = await res.json()
-        if (data && data[0]) {
-          setReservation(data[0])
+        if (data && data.id) {
+          setReservation(data)
           setLoading(false)
-          if (data[0].status === 'confirmed' || data[0].status === 'expired') {
+          if (data.status === 'confirmed' || data.status === 'expired') {
             setPolling(false); clearInterval(interval)
           }
         }
@@ -52,7 +47,7 @@ function ConfirmationContent() {
         {isConfirmed ? (
           <div>
             <h1 className="text-3xl font-serif mb-2">Reservering bevestigd!</h1>
-            <p className="text-gray-500 mb-8">Een bevestigingsmail is verstuurd naar {reservation.contact_email}</p>
+            <p className="text-gray-500 mb-8">Een bevestigingsmail is verstuurd.</p>
             <div className="bg-blue-50 rounded-xl p-6 text-left">
               <h2 className="text-xl font-serif mb-1">{product.icon} {product.name}</h2>
               <p className="text-gray-500 mb-2">{new Date(reservation.date).toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>

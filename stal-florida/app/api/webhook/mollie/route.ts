@@ -2,8 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getMollieClient } from '@/lib/mollie'
 import { sendConfirmationEmail } from '@/lib/email'
+import { rateLimit, getClientIp } from '@/lib/rate-limit'
 
 export async function POST(request: NextRequest) {
+  const ip = getClientIp(request)
+  const { allowed } = rateLimit('webhook:' + ip, 30, 60000)
+  if (!allowed) return NextResponse.json({ error: 'Rate limited' }, { status: 429 })
+
   try {
     const body = await request.formData()
     const paymentId = body.get('id') as string

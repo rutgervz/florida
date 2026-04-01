@@ -12,6 +12,9 @@ interface Ride {
 export default function BegeleidersPage() {
   const [guides, setGuides] = useState<Guide[]>([])
   const [selectedGuide, setSelectedGuide] = useState<Guide | null>(null)
+  const [pin, setPin] = useState('')
+  const [pinError, setPinError] = useState('')
+  const [authenticated, setAuthenticated] = useState(false)
   const [rides, setRides] = useState<Ride[]>([])
   const [loading, setLoading] = useState(false)
   const [filter, setFilter] = useState<'all' | 'mine' | 'open'>('all')
@@ -20,15 +23,25 @@ export default function BegeleidersPage() {
     fetch('/api/guides?action=list').then(r => r.json()).then(setGuides).catch(console.error)
   }, [])
 
-  useEffect(() => {
-    if (!selectedGuide) return
-    loadRides()
-  }, [selectedGuide])
+  async function handleLogin() {
+    if (!selectedGuide || pin.length < 4) { setPinError('Voer je PIN in'); return }
+    setPinError('')
+    setLoading(true)
+    const r = await fetch('/api/guides?guide_id=' + selectedGuide.id + '&pin=' + pin)
+    if (r.ok) {
+      const data = await r.json()
+      setRides(data)
+      setAuthenticated(true)
+    } else {
+      setPinError('Onjuiste PIN')
+    }
+    setLoading(false)
+  }
 
   function loadRides() {
-    if (!selectedGuide) return
+    if (!selectedGuide || !pin) return
     setLoading(true)
-    fetch('/api/guides?guide_id=' + selectedGuide.id)
+    fetch('/api/guides?guide_id=' + selectedGuide.id + '&pin=' + pin)
       .then(r => r.json())
       .then(data => { setRides(data); setLoading(false) })
       .catch(() => setLoading(false))
@@ -36,13 +49,13 @@ export default function BegeleidersPage() {
 
   async function toggleAssignment(ride: Ride) {
     if (ride.assigned) {
-      const params = 'guide_id=' + selectedGuide!.id + '&product_id=' + ride.product_id + '&date=' + ride.date + (ride.time_slot ? '&time_slot=' + ride.time_slot : '')
+      const params = 'guide_id=' + selectedGuide!.id + '&pin=' + pin + '&product_id=' + ride.product_id + '&date=' + ride.date + (ride.time_slot ? '&time_slot=' + ride.time_slot : '')
       await fetch('/api/guides?' + params, { method: 'DELETE' })
     } else {
       const res = await fetch('/api/guides', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ guide_id: selectedGuide!.id, product_id: ride.product_id, date: ride.date, time_slot: ride.time_slot }),
+        body: JSON.stringify({ guide_id: selectedGuide!.id, pin, product_id: ride.product_id, date: ride.date, time_slot: ride.time_slot }),
       })
       if (!res.ok) { const data = await res.json(); alert(data.error || 'Kon niet inschrijven'); return }
     }
@@ -55,13 +68,13 @@ export default function BegeleidersPage() {
     return true
   })
 
-  // Group by date
   const ridesByDate: Record<string, Ride[]> = {}
   filteredRides.forEach(r => {
     if (!ridesByDate[r.date]) ridesByDate[r.date] = []
     ridesByDate[r.date].push(r)
   })
 
+  // Step 1: Select guide
   if (!selectedGuide) {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -70,7 +83,7 @@ export default function BegeleidersPage() {
         </nav>
         <main className="max-w-2xl mx-auto px-6 py-8">
           <h1 className="text-2xl font-serif mb-2">Welkom</h1>
-          <p className="text-gray-500 mb-6">Kies je naam om ritten te bekijken en je in te schrijven.</p>
+          <p className="text-gray-500 mb-6">Kies je naam om ritten te bekijken.</p>
           <div className="space-y-3">
             {guides.map(g => (
               <button key={g.id} onClick={() => setSelectedGuide(g)}
@@ -84,13 +97,45 @@ export default function BegeleidersPage() {
     )
   }
 
+  // Step 2: Enter PIN
+  if (!authenticated) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <nav className="bg-gray-900 text-white px-6 py-4">
+          <div className="max-w-2xl mx-auto flex justify-between items-center">
+            <span className="font-serif text-lg">Stal Florida</span>
+            <button onClick={() => { setSelectedGuide(null); setPin(''); setPinError('') }} className="text-sm text-gray-400 hover:text-white">Terug</button>
+          </div>
+        </nav>
+        <main className="max-w-sm mx-auto px-6 py-12">
+          <h1 className="text-2xl font-serif mb-2">Hoi {selectedGuide.name}</h1>
+          <p className="text-gray-500 mb-6">Voer je PIN in om verder te gaan.</p>
+          <input
+            type="password" inputMode="numeric" maxLength={4} value={pin}
+            onChange={e => setPin(e.target.value.replace(/\D/g, ''))}
+            onKeyDown={e => { if (e.key === 'Enter') handleLogin() }}
+            placeholder="PIN"
+            className="w-full px-4 py-3 rounded-xl bg-white border border-gray-200 text-center text-2xl tracking-widest mb-4"
+            autoFocus
+          />
+          {pinError && <p className="text-red-500 text-sm mb-4 text-center">{pinError}</p>}
+          <button onClick={handleLogin} disabled={loading || pin.length < 4}
+            className="w-full px-4 py-3 bg-cyan-700 text-white rounded-xl font-medium disabled:opacity-50">
+            {loading ? 'Laden...' : 'Inloggen'}
+          </button>
+        </main>
+      </div>
+    )
+  }
+
+  // Step 3: Rides overview
   return (
     <div className="min-h-screen bg-gray-50">
       <nav className="bg-gray-900 text-white px-6 py-4">
         <div className="max-w-2xl mx-auto flex justify-between items-center">
           <span className="font-serif text-lg">Stal Florida</span>
-          <button onClick={() => { setSelectedGuide(null); setRides([]) }} className="text-sm text-gray-400 hover:text-white">
-            Wissel begeleider
+          <button onClick={() => { setSelectedGuide(null); setPin(''); setAuthenticated(false); setRides([]) }} className="text-sm text-gray-400 hover:text-white">
+            Uitloggen
           </button>
         </div>
       </nav>

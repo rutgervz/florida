@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
+import { verifyPassword, createSession } from '@/lib/auth'
 
 export async function POST(request: NextRequest) {
-  // Rate limit: max 5 login attempts per minute
   const ip = getClientIp(request)
   const { allowed } = rateLimit('login:' + ip, 5, 60000)
   if (!allowed) {
@@ -18,8 +18,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Ongeldig wachtwoord' }, { status: 400 })
   }
 
-  if (password === process.env.ADMIN_PASSWORD) {
-    return NextResponse.json({ token: process.env.ADMIN_PASSWORD })
+  if (verifyPassword(password)) {
+    const token = createSession()
+    return NextResponse.json({ token })
   }
 
   return NextResponse.json({ error: 'Onjuist wachtwoord' }, { status: 401 })

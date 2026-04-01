@@ -58,9 +58,7 @@ export default function AdminPage() {
   async function loadBlockedDates() { const r = await fetch('/api/admin/block-date', { headers: authHeaders() }); if (r.ok) setBlockedDates(await r.json()) }
   async function loadAvailability() { const m = getMonday(weekOffset); const s = new Date(m); s.setDate(s.getDate() + 5); const r = await fetch('/api/availability?start_date=' + fmt(m) + '&end_date=' + fmt(s)); if (r.ok) setAvailability(await r.json()) }
   async function loadGuideAssignments() {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL; const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    if (!supabaseUrl || !supabaseKey) return
-    const r = await fetch(supabaseUrl + '/rest/v1/guide_assignments?select=product_id,date,time_slot,guides(name)', { headers: { apikey: supabaseKey, Authorization: 'Bearer ' + supabaseKey } })
+    const r = await fetch('/api/admin/guide-assignments', { headers: authHeaders() })
     if (r.ok) setGuideAssignments(await r.json())
   }
 
@@ -617,6 +615,7 @@ function GuidesManager({ authHeaders }: { authHeaders: any }) {
                 <div>
                   <span className="font-medium">{g.name}</span>
                   <span className="text-gray-400 text-sm ml-3">{g.phone}</span>
+                  {g.pin && <span className="ml-3 text-xs bg-cyan-50 text-cyan-700 px-2 py-0.5 rounded-full font-mono">PIN: {g.pin}</span>}
                   {!g.active && <span className="ml-2 text-xs bg-gray-200 text-gray-500 px-2 py-0.5 rounded-full">Inactief</span>}
                 </div>
                 <div className="flex gap-2">
