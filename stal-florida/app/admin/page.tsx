@@ -166,17 +166,52 @@ export default function AdminPage() {
               ))}
             </div>
             <div className="mt-6"><h2 className="text-lg font-serif mb-3">Blokkeren</h2><BlockDateForm products={products} authHeaders={authHeaders()} onBlocked={() => { loadBlockedDates(); loadAvailability() }} /></div>
-            {blockedDates.length > 0 && <div className="mt-4"><h3 className="text-sm font-medium text-gray-500 mb-2">Actief</h3>{blockedDates.map((bd: any) => {
-              const isReduction = bd.reduce_capacity && bd.reduce_capacity > 0
-              const bgColor = isReduction ? 'bg-amber-50' : 'bg-red-50'
-              const textColor = isReduction ? 'text-amber-800' : 'text-red-700'
-              const slotsTotal = bd.products?.slots_total || 6
-              const typeLabel = bd.reduce_type === 'adult' ? ' V' : bd.reduce_type === 'child' ? ' K' : ''
-              const label = isReduction
-                ? (bd.products?.icon || '') + ' ' + (bd.products?.name || 'Alle') + (bd.time_slot ? ' ' + bd.time_slot.substring(0, 5) : '') + ' — -' + bd.reduce_capacity + typeLabel + ' (' + slotsTotal + '→' + (slotsTotal - bd.reduce_capacity) + ')'
-                : (bd.products?.icon || '') + ' ' + (bd.products?.name || 'Alle') + (bd.time_slot ? ' ' + bd.time_slot.substring(0, 5) : '') + ' — Hele rit geblokkeerd'
-              return (<div key={bd.id} className={'flex justify-between items-center rounded-lg px-4 py-2 mb-1 ' + bgColor}><span className={'text-sm font-medium ' + textColor}>{new Date(bd.date).toLocaleDateString('nl-NL')} — {label}</span><button onClick={async () => { await fetch('/api/admin/block-date?id=' + bd.id, { method: 'DELETE', headers: authHeaders() }); loadBlockedDates(); loadAvailability() }} className="text-red-500 text-sm hover:text-red-700">Verwijder</button></div>)
-            })}</div>}
+            {blockedDates.length > 0 && <div className="mt-4"><h3 className="text-sm font-medium text-gray-500 mb-2">Actief</h3>{(() => {
+              // Group by batch_id
+              const batches: Record<string, any[]> = {}
+              const singles: any[] = []
+              blockedDates.forEach((bd: any) => {
+                if (bd.batch_id) {
+                  if (!batches[bd.batch_id]) batches[bd.batch_id] = []
+                  batches[bd.batch_id].push(bd)
+                } else {
+                  singles.push(bd)
+                }
+              })
+
+              const items: any[] = []
+
+              // Render batches as grouped items
+              Object.entries(batches).forEach(([batchId, bds]) => {
+                const sorted = bds.sort((a: any, b: any) => a.date.localeCompare(b.date))
+                const first = sorted[0]; const last = sorted[sorted.length - 1]
+                const isReduction = first.reduce_capacity && first.reduce_capacity > 0
+                const bgColor = isReduction ? 'bg-amber-50' : 'bg-red-50'
+                const textColor = isReduction ? 'text-amber-800' : 'text-red-700'
+                const slotsTotal = first.products?.slots_total || 6
+                const typeLabel = first.reduce_type === 'adult' ? ' V' : first.reduce_type === 'child' ? ' K' : ''
+                const productLabel = (first.products?.icon || '') + ' ' + (first.products?.name || 'Alle') + (first.time_slot ? ' ' + first.time_slot.substring(0, 5) : '')
+                const dateLabel = new Date(first.date).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' }) + ' t/m ' + new Date(last.date).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })
+                const actionLabel = isReduction ? ' — -' + first.reduce_capacity + typeLabel + ' (' + slotsTotal + '→' + (slotsTotal - first.reduce_capacity) + ') — ' + sorted.length + ' dagen' : ' — Geblokkeerd — ' + sorted.length + ' dagen'
+
+                items.push(<div key={batchId} className={'flex justify-between items-center rounded-lg px-4 py-2 mb-1 ' + bgColor}><span className={'text-sm font-medium ' + textColor}>{dateLabel} — {productLabel}{actionLabel}</span><button onClick={async () => { await fetch('/api/admin/block-date?batch_id=' + batchId, { method: 'DELETE', headers: authHeaders() }); loadBlockedDates(); loadAvailability() }} className="text-red-500 text-sm hover:text-red-700">Verwijder alle</button></div>)
+              })
+
+              // Render singles
+              singles.forEach((bd: any) => {
+                const isReduction = bd.reduce_capacity && bd.reduce_capacity > 0
+                const bgColor = isReduction ? 'bg-amber-50' : 'bg-red-50'
+                const textColor = isReduction ? 'text-amber-800' : 'text-red-700'
+                const slotsTotal = bd.products?.slots_total || 6
+                const typeLabel = bd.reduce_type === 'adult' ? ' V' : bd.reduce_type === 'child' ? ' K' : ''
+                const label = isReduction
+                  ? (bd.products?.icon || '') + ' ' + (bd.products?.name || 'Alle') + (bd.time_slot ? ' ' + bd.time_slot.substring(0, 5) : '') + ' — -' + bd.reduce_capacity + typeLabel + ' (' + slotsTotal + '→' + (slotsTotal - bd.reduce_capacity) + ')'
+                  : (bd.products?.icon || '') + ' ' + (bd.products?.name || 'Alle') + (bd.time_slot ? ' ' + bd.time_slot.substring(0, 5) : '') + ' — Hele rit geblokkeerd'
+                items.push(<div key={bd.id} className={'flex justify-between items-center rounded-lg px-4 py-2 mb-1 ' + bgColor}><span className={'text-sm font-medium ' + textColor}>{new Date(bd.date).toLocaleDateString('nl-NL')} — {label}</span><button onClick={async () => { await fetch('/api/admin/block-date?id=' + bd.id, { method: 'DELETE', headers: authHeaders() }); loadBlockedDates(); loadAvailability() }} className="text-red-500 text-sm hover:text-red-700">Verwijder</button></div>)
+              })
+
+              return items
+            })()}</div>}
           </div>
         )}
 
@@ -372,38 +407,55 @@ function OfflineBookingForm({ products, authHeaders, onSaved }: { products: any[
 }
 
 function BlockDateForm({ products, authHeaders, onBlocked }: { products: any[]; authHeaders: any; onBlocked: () => void }) {
-  const [date, setDate] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
   const [productId, setProductId] = useState('')
   const [timeSlot, setTimeSlot] = useState('')
   const [reduceCapacity, setReduceCapacity] = useState('')
   const [reduceType, setReduceType] = useState('')
   const [message, setMessage] = useState('')
+  const [saving, setSaving] = useState(false)
 
   const selectedProduct = products.find((p: any) => p.id === productId)
   const hasSlots = selectedProduct?.time_slots && selectedProduct.time_slots.length > 0
   const hasDistinction = selectedProduct && selectedProduct.slots_adult > 0 && selectedProduct.slots_child > 0
 
+  // Calculate number of days
+  let dayCount = 0
+  if (dateFrom && dateTo && dateTo >= dateFrom) {
+    dayCount = Math.floor((new Date(dateTo).getTime() - new Date(dateFrom).getTime()) / 86400000) + 1
+  } else if (dateFrom && !dateTo) {
+    dayCount = 1
+  }
+
   async function handleBlock() {
-    if (!date) { setMessage('Kies een datum'); return }
-    setMessage('')
+    if (!dateFrom) { setMessage('Kies een startdatum'); return }
+    setMessage(''); setSaving(true)
     try {
-      const res = await fetch('/api/admin/block-date', { method: 'POST', headers: authHeaders, body: JSON.stringify({ date, product_id: productId || null, time_slot: timeSlot || null, reason: null, reduce_capacity: reduceCapacity ? parseInt(reduceCapacity) : null, reduce_type: reduceCapacity && hasDistinction ? (reduceType || null) : null }) })
-      if (!res.ok) { const data = await res.json(); setMessage('Fout: ' + (data.error || 'Onbekend')); return }
-      setDate(''); setProductId(''); setTimeSlot(''); setReduceCapacity(''); setReduceType(''); setMessage(''); onBlocked()
+      const res = await fetch('/api/admin/block-date', { method: 'POST', headers: authHeaders, body: JSON.stringify({
+        date: dateFrom, date_end: dateTo || dateFrom,
+        product_id: productId || null, time_slot: timeSlot || null, reason: null,
+        reduce_capacity: reduceCapacity ? parseInt(reduceCapacity) : null,
+        reduce_type: reduceCapacity && hasDistinction ? (reduceType || null) : null
+      }) })
+      if (!res.ok) { const data = await res.json(); setMessage('Fout: ' + (data.error || 'Onbekend')); setSaving(false); return }
+      setDateFrom(''); setDateTo(''); setProductId(''); setTimeSlot(''); setReduceCapacity(''); setReduceType(''); setMessage(''); onBlocked()
     } catch (err) { setMessage('Fout bij opslaan') }
+    setSaving(false)
   }
 
   return (
     <div>
       <div className="bg-white rounded-xl shadow-sm p-4 flex gap-3 items-end flex-wrap">
-        <div><label className="text-xs text-gray-400 block mb-1">DATUM</label><input type="date" value={date} onChange={e => setDate(e.target.value)} className="px-3 py-2 rounded-lg bg-gray-50 border border-gray-200 text-sm" /></div>
+        <div><label className="text-xs text-gray-400 block mb-1">VAN</label><input type="date" value={dateFrom} onChange={e => { setDateFrom(e.target.value); if (!dateTo) setDateTo(e.target.value) }} className="px-3 py-2 rounded-lg bg-gray-50 border border-gray-200 text-sm" /></div>
+        <div><label className="text-xs text-gray-400 block mb-1">TOT EN MET</label><input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} min={dateFrom} className="px-3 py-2 rounded-lg bg-gray-50 border border-gray-200 text-sm" /></div>
         <div><label className="text-xs text-gray-400 block mb-1">PRODUCT</label><select value={productId} onChange={e => { setProductId(e.target.value); setTimeSlot(''); setReduceType('') }} className="px-3 py-2 rounded-lg bg-gray-50 border border-gray-200 text-sm"><option value="">Alle</option>{products.filter(p => p.active).map(p => <option key={p.id} value={p.id}>{p.icon} {p.name}</option>)}</select></div>
         {hasSlots && <div><label className="text-xs text-gray-400 block mb-1">TIJDSLOT</label><select value={timeSlot} onChange={e => setTimeSlot(e.target.value)} className="px-3 py-2 rounded-lg bg-gray-50 border border-gray-200 text-sm"><option value="">Hele dag</option>{selectedProduct.time_slots.map((s: string) => <option key={s} value={s.substring(0, 5)}>{s.substring(0, 5)}</option>)}</select></div>}
         <div><label className="text-xs text-gray-400 block mb-1">PAARDEN MINDER</label><input type="number" min="0" max="6" value={reduceCapacity} onChange={e => setReduceCapacity(e.target.value)} placeholder="Leeg = hele rit" className="px-3 py-2 rounded-lg bg-gray-50 border border-gray-200 text-sm w-32" /></div>
         {reduceCapacity && hasDistinction && <div><label className="text-xs text-gray-400 block mb-1">TYPE PAARD</label><select value={reduceType} onChange={e => setReduceType(e.target.value)} className="px-3 py-2 rounded-lg bg-gray-50 border border-gray-200 text-sm"><option value="">Totaal</option><option value="adult">Volwassen (V)</option><option value="child">Kind (K)</option></select></div>}
-        <button onClick={handleBlock} className="px-5 py-2 bg-cyan-700 text-white rounded-lg text-sm font-medium">Blokkeer</button>
+        <button onClick={handleBlock} disabled={saving} className="px-5 py-2 bg-cyan-700 text-white rounded-lg text-sm font-medium disabled:opacity-50">{saving ? 'Bezig...' : 'Blokkeer'}</button>
       </div>
-      <p className="text-xs text-gray-400 mt-2">Leeg = hele rit blokkeren. Getal = capaciteit verminderen.</p>
+      <p className="text-xs text-gray-400 mt-2">{dayCount > 1 ? dayCount + ' dagen worden geblokkeerd. ' : ''}Leeg = hele rit blokkeren. Getal = capaciteit verminderen.</p>
       {message && <p className="text-xs text-red-500 mt-1">{message}</p>}
     </div>
   )
