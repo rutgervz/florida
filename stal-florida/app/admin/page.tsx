@@ -281,7 +281,7 @@ function BookingCard({ booking: b, onCancel, guideAssignments }: { booking: any;
     .filter(ga => ga.product_id === b.product_id && ga.date === b.date &&
       (b.time_slot ? ga.time_slot && ga.time_slot.substring(0, 5) === b.time_slot.substring(0, 5) : !ga.time_slot))
     .map(ga => ga.guides?.name).filter(Boolean)
-  const uniqueGuides = [...new Set(guideNames)]
+  const uniqueGuides = guideNames.filter((name: string, index: number) => guideNames.indexOf(name) === index)
   const hasGuide = uniqueGuides.length > 0
   const isActive = ['confirmed', 'offline'].includes(b.status)
 
