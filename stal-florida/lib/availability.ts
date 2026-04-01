@@ -82,8 +82,8 @@ export async function getAvailabilityRange(startDate: string, endDate: string, p
   const { data: products } = await query
   if (!products) return results
 
-  const dates: string[] = []; const cur = new Date(startDate); const end = new Date(endDate)
-  while (cur <= end) { dates.push(cur.toISOString().split('T')[0]); cur.setDate(cur.getDate() + 1) }
+  const dates: string[] = []; const cur = new Date(startDate + 'T12:00:00'); const end = new Date(endDate + 'T12:00:00')
+  while (cur <= end) { const y = cur.getFullYear(); const m = String(cur.getMonth() + 1).padStart(2, '0'); const dd = String(cur.getDate()).padStart(2, '0'); dates.push(y + '-' + m + '-' + dd); cur.setDate(cur.getDate() + 1) }
 
   const { data: allBlocks } = await supabaseAdmin.from('blocked_dates').select('*').gte('date', startDate).lte('date', endDate)
   const { data: allRes } = await supabaseAdmin.from('reservations').select('product_id, date, time_slot, num_adults, num_children').gte('date', startDate).lte('date', endDate).in('status', ACTIVE_STATUSES)

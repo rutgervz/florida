@@ -53,7 +53,7 @@ export default function BookingPage() {
     if (!selectedProduct) return
     const start = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1)
     const end = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 0)
-    fetch('/api/availability?product_id=' + selectedProduct.id + '&start_date=' + start.toISOString().split('T')[0] + '&end_date=' + end.toISOString().split('T')[0])
+    fetch('/api/availability?product_id=' + selectedProduct.id + '&start_date=' + ( start.getFullYear() + '-' + String(start.getMonth() + 1).padStart(2, '0') + '-' + String(start.getDate()).padStart(2, '0') ) + '&end_date=' + ( end.getFullYear() + '-' + String(end.getMonth() + 1).padStart(2, '0') + '-' + String(end.getDate()).padStart(2, '0') ))
       .then(r => r.json())
       .then(data => { if (data[selectedProduct.id]) setAvailability(data[selectedProduct.id]) })
       .catch(console.error)
@@ -120,7 +120,7 @@ export default function BookingPage() {
     const days: (number | null)[] = []
     for (let i = 0; i < startDow; i++) days.push(null)
     for (let d = 1; d <= lastDay.getDate(); d++) days.push(d)
-    const today = new Date().toISOString().split('T')[0]
+    const today = (() => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') })()
 
     return (
       <div className="pb-28">

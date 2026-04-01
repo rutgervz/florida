@@ -12,7 +12,7 @@ interface Product {
   warning: string | null; active: boolean; sort_order: number; gradient: string; accent: string
 }
 
-function fmt(d: Date) { return d.toISOString().split('T')[0] }
+function fmt(d: Date) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') }
 function getMonday(offset: number) {
   const d = new Date(); const day = d.getDay()
   const diff = d.getDate() - day + (day === 0 ? -6 : 1) + offset * 7
