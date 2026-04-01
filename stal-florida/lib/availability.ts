@@ -88,13 +88,16 @@ export async function getAvailabilityRange(startDate: string, endDate: string, p
   const { data: allBlocks } = await supabaseAdmin.from('blocked_dates').select('*').gte('date', startDate).lte('date', endDate)
   const { data: allRes } = await supabaseAdmin.from('reservations').select('product_id, date, time_slot, num_adults, num_children').gte('date', startDate).lte('date', endDate).in('status', ACTIVE_STATUSES)
 
+  // Normalize dates from Supabase (could be '2026-04-01' or '2026-04-01T00:00:00')
+  const normDate = (d: string) => d ? d.substring(0, 10) : ''
+
   for (const product of products) {
     results[product.id] = {}
     for (const date of dates) {
       const dow = new Date(date).getDay(); const od = dow === 0 ? 7 : dow
       if (!product.available_days.includes(od)) { results[product.id][date] = { adults_available: 0, children_available: 0, total_available: 0, blocked: true }; continue }
 
-      const db = allBlocks?.filter(b => b.date === date && (b.product_id === product.id || b.product_id === null)) || []
+      const db = allBlocks?.filter(b => normDate(b.date) === date && (b.product_id === product.id || b.product_id === null)) || []
       const fb = db.find(b => !b.time_slot && !b.reduce_capacity)
       if (fb) { results[product.id][date] = { adults_available: 0, children_available: 0, total_available: 0, blocked: true, block_reason: fb.reason || 'Geblokkeerd' }; continue }
 
@@ -104,7 +107,7 @@ export async function getAvailabilityRange(startDate: string, endDate: string, p
           const sk = slot.substring(0, 5)
           if (db.find(b => !b.reduce_capacity && b.time_slot && b.time_slot.substring(0, 5) === sk)) { slots[sk] = { total_available: 0, blocked: true }; continue }
           const red = applyReductions(product.slots_total, product.slots_adult, product.slots_child, collectReductions(db, sk))
-          let used = 0; allRes?.filter(r => r.product_id === product.id && r.date === date && r.time_slot && r.time_slot.substring(0, 5) === sk).forEach(r => { used += r.num_adults + r.num_children })
+          let used = 0; allRes?.filter(r => r.product_id === product.id && normDate(r.date) === date && r.time_slot && r.time_slot.substring(0, 5) === sk).forEach(r => { used += r.num_adults + r.num_children })
           const left = Math.max(0, red.slotsTotal - used); slots[sk] = { total_available: left, blocked: false }; anyAvail += left
         }
         results[product.id][date] = { adults_available: 0, children_available: 0, total_available: anyAvail > 0 ? 1 : 0, blocked: false, slots }; continue
@@ -114,7 +117,7 @@ export async function getAvailabilityRange(startDate: string, endDate: string, p
       if (sb) { results[product.id][date] = { adults_available: 0, children_available: 0, total_available: 0, blocked: true }; continue }
 
       const red = applyReductions(product.slots_total, product.slots_adult, product.slots_child, collectReductions(db))
-      let uA = 0, uC = 0; allRes?.filter(r => r.product_id === product.id && r.date === date).forEach(r => { uA += r.num_adults; uC += r.num_children })
+      let uA = 0, uC = 0; allRes?.filter(r => r.product_id === product.id && normDate(r.date) === date).forEach(r => { uA += r.num_adults; uC += r.num_children })
       const left = red.slotsTotal - uA - uC
       results[product.id][date] = { adults_available: Math.max(0, Math.min(red.slotsAdult - uA, left)), children_available: Math.max(0, left), total_available: Math.max(0, left), blocked: false }
     }
