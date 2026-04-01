@@ -57,21 +57,17 @@ export async function GET(request: NextRequest) {
 
   // Build rides list: only dates that have bookings
   const rides: any[] = []
-  const rideMap = new Map<string, boolean>()
+  const rideCountMap = new Map<string, number>()
 
-  // Group reservations by product+date+timeslot
+  // Group reservations by product+date+timeslot, sum rider counts
   reservations?.forEach(r => {
-    const slots = products.find(p => p.id === r.product_id)?.time_slots
-    if (slots && slots.length > 0) {
-      const key = r.product_id + '|' + r.date + '|' + (r.time_slot ? r.time_slot.substring(0, 5) : '')
-      rideMap.set(key, true)
-    } else {
-      const key = r.product_id + '|' + r.date + '|'
-      rideMap.set(key, true)
-    }
+    const ts = r.time_slot ? r.time_slot.substring(0, 5) : ''
+    const key = r.product_id + '|' + r.date + '|' + ts
+    const current = rideCountMap.get(key) || 0
+    rideCountMap.set(key, current + r.num_adults + r.num_children)
   })
 
-  rideMap.forEach((_, key) => {
+  rideCountMap.forEach((riderCount, key) => {
     const [productId, date, timeSlot] = key.split('|')
     const product = products.find(p => p.id === productId)
     if (!product) return
@@ -84,13 +80,6 @@ export async function GET(request: NextRequest) {
       (!b.time_slot || (timeSlot && b.time_slot.substring(0, 5) === timeSlot))
     )
     if (isBlocked) return
-
-    // Count riders
-    let riderCount = 0
-    reservations?.filter(r =>
-      r.product_id === productId && r.date === date &&
-      (timeSlot ? r.time_slot && r.time_slot.substring(0, 5) === timeSlot : !r.time_slot || true)
-    ).forEach(r => { riderCount += r.num_adults + r.num_children })
 
     // Check if this guide is assigned
     const assigned = myAssignments?.some(a =>
