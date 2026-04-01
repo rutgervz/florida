@@ -377,15 +377,20 @@ function BlockDateForm({ products, authHeaders, onBlocked }: { products: any[]; 
   const [timeSlot, setTimeSlot] = useState('')
   const [reduceCapacity, setReduceCapacity] = useState('')
   const [reduceType, setReduceType] = useState('')
+  const [message, setMessage] = useState('')
 
   const selectedProduct = products.find((p: any) => p.id === productId)
   const hasSlots = selectedProduct?.time_slots && selectedProduct.time_slots.length > 0
   const hasDistinction = selectedProduct && selectedProduct.slots_adult > 0 && selectedProduct.slots_child > 0
 
   async function handleBlock() {
-    if (!date) return
-    await fetch('/api/admin/block-date', { method: 'POST', headers: authHeaders, body: JSON.stringify({ date, product_id: productId || null, time_slot: timeSlot || null, reason: null, reduce_capacity: reduceCapacity ? parseInt(reduceCapacity) : null, reduce_type: reduceCapacity && hasDistinction ? (reduceType || null) : null }) })
-    setDate(''); setProductId(''); setTimeSlot(''); setReduceCapacity(''); setReduceType(''); onBlocked()
+    if (!date) { setMessage('Kies een datum'); return }
+    setMessage('')
+    try {
+      const res = await fetch('/api/admin/block-date', { method: 'POST', headers: authHeaders, body: JSON.stringify({ date, product_id: productId || null, time_slot: timeSlot || null, reason: null, reduce_capacity: reduceCapacity ? parseInt(reduceCapacity) : null, reduce_type: reduceCapacity && hasDistinction ? (reduceType || null) : null }) })
+      if (!res.ok) { const data = await res.json(); setMessage('Fout: ' + (data.error || 'Onbekend')); return }
+      setDate(''); setProductId(''); setTimeSlot(''); setReduceCapacity(''); setReduceType(''); setMessage(''); onBlocked()
+    } catch (err) { setMessage('Fout bij opslaan') }
   }
 
   return (
@@ -399,6 +404,7 @@ function BlockDateForm({ products, authHeaders, onBlocked }: { products: any[]; 
         <button onClick={handleBlock} className="px-5 py-2 bg-cyan-700 text-white rounded-lg text-sm font-medium">Blokkeer</button>
       </div>
       <p className="text-xs text-gray-400 mt-2">Leeg = hele rit blokkeren. Getal = capaciteit verminderen.</p>
+      {message && <p className="text-xs text-red-500 mt-1">{message}</p>}
     </div>
   )
 }
