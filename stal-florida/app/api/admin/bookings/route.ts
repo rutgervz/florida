@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabaseAdmin
     .from('reservations')
-    .select('*, products(name, icon, start_time, arrive_time, time_slots), guide_assignments(guides(name))')
+    .select('*, products(name, icon, start_time, arrive_time, time_slots)')
     .order('date', { ascending: true })
     .order('created_at', { ascending: false })
     .limit(200)

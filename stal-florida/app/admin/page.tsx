@@ -37,12 +37,13 @@ export default function AdminPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [bookingsView, setBookingsView] = useState<'current' | 'archive'>('current')
+  const [guideAssignments, setGuideAssignments] = useState<any[]>([])
 
   useEffect(() => { const s = sessionStorage.getItem('admin_token'); if (s) setToken(s) }, [])
 
   const authHeaders = useCallback(() => ({ 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }), [token])
 
-  useEffect(() => { if (!token) return; loadProducts(); loadBookings(); loadAllBookings(); loadBlockedDates() }, [token])
+  useEffect(() => { if (!token) return; loadProducts(); loadBookings(); loadAllBookings(); loadBlockedDates(); loadGuideAssignments() }, [token])
   useEffect(() => { if (!token) return; loadAvailability() }, [token, weekOffset])
 
   async function login() {
@@ -56,6 +57,12 @@ export default function AdminPage() {
   async function loadAllBookings() { const r = await fetch('/api/admin/bookings?status=confirmed', { headers: authHeaders() }); if (r.ok) { const confirmed = await r.json(); const r2 = await fetch('/api/admin/bookings?status=offline', { headers: authHeaders() }); const offline = r2.ok ? await r2.json() : []; setAllBookings([...confirmed, ...offline]) } }
   async function loadBlockedDates() { const r = await fetch('/api/admin/block-date', { headers: authHeaders() }); if (r.ok) setBlockedDates(await r.json()) }
   async function loadAvailability() { const m = getMonday(weekOffset); const s = new Date(m); s.setDate(s.getDate() + 5); const r = await fetch('/api/availability?start_date=' + fmt(m) + '&end_date=' + fmt(s)); if (r.ok) setAvailability(await r.json()) }
+  async function loadGuideAssignments() {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL; const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    if (!supabaseUrl || !supabaseKey) return
+    const r = await fetch(supabaseUrl + '/rest/v1/guide_assignments?select=product_id,date,time_slot,guides(name)', { headers: { apikey: supabaseKey, Authorization: 'Bearer ' + supabaseKey } })
+    if (r.ok) setGuideAssignments(await r.json())
+  }
 
   async function cancelBooking(id: string) {
     if (confirm('Weet je zeker dat je deze reservering wilt annuleren?')) {
@@ -134,11 +141,11 @@ export default function AdminPage() {
               <div className="bg-white rounded-xl shadow-sm p-6"><div className="text-xs text-gray-400 font-medium tracking-wider mb-1">KOMENDE 30 DAGEN</div><div className="text-3xl font-serif" style={{ color: '#7A4A2D' }}>{monthBookings.length}</div><div className="text-sm text-gray-500">{monthRiders} ruiters - EUR {monthRevenue.toFixed(0)}</div></div>
             </div>
             <h2 className="text-lg font-serif mb-3">Vandaag ({new Date().toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long' })})</h2>
-            {todayBookings.length === 0 ? <div className="bg-white rounded-xl shadow-sm p-6 text-gray-400 text-center mb-6">Geen boekingen vandaag</div> : <div className="space-y-3 mb-6">{todayBookings.map((b: any) => <BookingCard key={b.id} booking={b} onCancel={cancelBooking} />)}</div>}
+            {todayBookings.length === 0 ? <div className="bg-white rounded-xl shadow-sm p-6 text-gray-400 text-center mb-6">Geen boekingen vandaag</div> : <div className="space-y-3 mb-6">{todayBookings.map((b: any) => <BookingCard key={b.id} booking={b} onCancel={cancelBooking} guideAssignments={guideAssignments} />)}</div>}
             <h2 className="text-lg font-serif mb-3">Deze week</h2>
-            {weekBookings.length === 0 ? <div className="bg-white rounded-xl shadow-sm p-6 text-gray-400 text-center mb-6">Geen boekingen deze week</div> : <div className="space-y-3 mb-6">{weekBookings.map((b: any) => <BookingCard key={b.id} booking={b} onCancel={cancelBooking} />)}</div>}
+            {weekBookings.length === 0 ? <div className="bg-white rounded-xl shadow-sm p-6 text-gray-400 text-center mb-6">Geen boekingen deze week</div> : <div className="space-y-3 mb-6">{weekBookings.map((b: any) => <BookingCard key={b.id} booking={b} onCancel={cancelBooking} guideAssignments={guideAssignments} />)}</div>}
             <h2 className="text-lg font-serif mb-3">Komende 30 dagen</h2>
-            {monthBookings.length === 0 ? <div className="bg-white rounded-xl shadow-sm p-6 text-gray-400 text-center">Geen boekingen komende 30 dagen</div> : <div className="space-y-3">{monthBookings.map((b: any) => <BookingCard key={b.id} booking={b} onCancel={cancelBooking} />)}</div>}
+            {monthBookings.length === 0 ? <div className="bg-white rounded-xl shadow-sm p-6 text-gray-400 text-center">Geen boekingen komende 30 dagen</div> : <div className="space-y-3">{monthBookings.map((b: any) => <BookingCard key={b.id} booking={b} onCancel={cancelBooking} guideAssignments={guideAssignments} />)}</div>}
           </div>
         )}
 
@@ -238,7 +245,7 @@ export default function AdminPage() {
               const list = bookingsView === 'current' ? currentBookings : archiveBookings
               return list.length === 0
                 ? <div className="bg-white rounded-xl shadow-sm p-6 text-gray-400 text-center">{bookingsView === 'current' ? 'Geen actuele reserveringen' : 'Geen reserveringen in archief'}</div>
-                : <div className="space-y-3">{list.map((b: any) => <BookingCard key={b.id} booking={b} onCancel={cancelBooking} />)}</div>
+                : <div className="space-y-3">{list.map((b: any) => <BookingCard key={b.id} booking={b} onCancel={cancelBooking} guideAssignments={guideAssignments} />)}</div>
             })()}
           </div>
         )}
@@ -263,14 +270,19 @@ export default function AdminPage() {
   )
 }
 
-function BookingCard({ booking: b, onCancel }: { booking: any; onCancel: (id: string) => void }) {
+function BookingCard({ booking: b, onCancel, guideAssignments }: { booking: any; onCancel: (id: string) => void; guideAssignments: any[] }) {
   const displayTime = b.time_slot ? b.time_slot.substring(0, 5) : (b.products?.start_time ? b.products.start_time.substring(0, 5) : '')
   const statusColors: Record<string, string> = { confirmed: 'bg-green-100 text-green-700', pending: 'bg-amber-100 text-amber-700', offline: 'bg-blue-100 text-blue-700', cancelled: 'bg-red-100 text-red-700', expired: 'bg-gray-100 text-gray-500' }
   const statusLabels: Record<string, string> = { confirmed: 'Betaald', pending: 'Wachtend', offline: 'Offline', cancelled: 'Geannuleerd', expired: 'Verlopen' }
   const borderColors: Record<string, string> = { confirmed: '#2D5A3A', pending: '#7A4A2D', offline: '#2D6A7A', cancelled: '#999', expired: '#999' }
 
-  const guideNames = (b.guide_assignments || []).map((ga: any) => ga.guides?.name).filter(Boolean)
-  const hasGuide = guideNames.length > 0
+  // Match guide assignments by product + date + time_slot
+  const guideNames = guideAssignments
+    .filter(ga => ga.product_id === b.product_id && ga.date === b.date &&
+      (b.time_slot ? ga.time_slot && ga.time_slot.substring(0, 5) === b.time_slot.substring(0, 5) : !ga.time_slot))
+    .map(ga => ga.guides?.name).filter(Boolean)
+  const uniqueGuides = [...new Set(guideNames)]
+  const hasGuide = uniqueGuides.length > 0
   const isActive = ['confirmed', 'offline'].includes(b.status)
 
   return (

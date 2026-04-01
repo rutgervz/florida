@@ -214,43 +214,30 @@ async function sendWeeklyReport(now: Date) {
 async function sendGuideReminders(now: Date) {
   const today = fmt(now)
 
-  // Get today's rides
-  const { data: todayRides } = await supabaseAdmin
-    .from('reservations')
-    .select('id, date, time_slot, products(name, icon, start_time)')
-    .eq('date', today)
-    .in('status', ['confirmed', 'offline'])
-
-  if (!todayRides || todayRides.length === 0) return
-
-  // Get all assignments for today's rides
-  const rideIds = todayRides.map(r => r.id)
+  // Get today's guide assignments with product info
   const { data: assignments } = await supabaseAdmin
     .from('guide_assignments')
-    .select('reservation_id, guides(name, phone)')
-    .in('reservation_id', rideIds)
+    .select('product_id, date, time_slot, guides(name, phone), products(name, icon, start_time)')
+    .eq('date', today)
 
   if (!assignments || assignments.length === 0) return
 
-  // Group rides by guide
+  // Group by guide
   const guideRides: Record<string, { name: string; phone: string; rides: string[] }> = {}
 
   for (const a of assignments) {
     const guide = a.guides as any
-    if (!guide || !guide.phone) continue
+    const product = a.products as any
+    if (!guide || !guide.phone || !product) continue
 
     if (!guideRides[guide.phone]) {
       guideRides[guide.phone] = { name: guide.name, phone: guide.phone, rides: [] }
     }
 
-    const ride = todayRides.find(r => r.id === a.reservation_id)
-    if (ride) {
-      const time = ride.time_slot ? ride.time_slot.substring(0, 5) : ((ride.products as any)?.start_time ? (ride.products as any).start_time.substring(0, 5) : '')
-      guideRides[guide.phone].rides.push(time + ' ' + (ride.products as any)?.icon + ' ' + (ride.products as any)?.name)
-    }
+    const time = a.time_slot ? a.time_slot.substring(0, 5) : (product.start_time ? product.start_time.substring(0, 5) : '')
+    guideRides[guide.phone].rides.push(time + ' ' + product.icon + ' ' + product.name)
   }
 
-  // Send SMS to each guide
   const dateLabel = new Date(today).toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long' })
 
   for (const g of Object.values(guideRides)) {
