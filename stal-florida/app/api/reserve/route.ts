@@ -29,6 +29,12 @@ export async function POST(request: NextRequest) {
     const today = cetNow.getFullYear() + '-' + String(cetNow.getMonth() + 1).padStart(2, '0') + '-' + String(cetNow.getDate()).padStart(2, '0')
     if (date < today) return NextResponse.json({ error: 'Kan niet in het verleden boeken' }, { status: 400 })
 
+    // Minimum 24 uur van tevoren
+    const tomorrow = new Date(cetNow)
+    tomorrow.setDate(tomorrow.getDate() + 1)
+    const tomorrowStr = tomorrow.getFullYear() + '-' + String(tomorrow.getMonth() + 1).padStart(2, '0') + '-' + String(tomorrow.getDate()).padStart(2, '0')
+    if (date < tomorrowStr) return NextResponse.json({ error: 'Reserveren kan tot uiterlijk 24 uur van tevoren.' }, { status: 400 })
+
     const maxDate = new Date(cetNow)
     maxDate.setMonth(maxDate.getMonth() + 6)
     const maxDateStr = maxDate.getFullYear() + '-' + String(maxDate.getMonth() + 1).padStart(2, '0') + '-' + String(maxDate.getDate()).padStart(2, '0')
