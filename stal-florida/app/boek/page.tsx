@@ -121,8 +121,16 @@ export default function BookingPage() {
     for (let i = 0; i < startDow; i++) days.push(null)
     for (let d = 1; d <= lastDay.getDate(); d++) days.push(d)
     const today = (() => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') })()
-    const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') })()
-    const minDate = tomorrow // Minimaal 24 uur van tevoren
+    // 24 uur van tevoren: check tegen vroegste starttijd van het product
+    const earliestTime = hasTimeSlots && selectedProduct.time_slots
+      ? selectedProduct.time_slots.reduce((earliest: string, s: string) => s.substring(0, 5) < earliest ? s.substring(0, 5) : earliest, '23:59')
+      : (selectedProduct.start_time ? selectedProduct.start_time.substring(0, 5) : '09:00')
+    const nowMs = Date.now()
+    function isTooSoon(dateStr: string): boolean {
+      const [h, m] = earliestTime.split(':').map(Number)
+      const rideMs = new Date(dateStr + 'T' + String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0') + ':00').getTime()
+      return (rideMs - nowMs) < 24 * 60 * 60 * 1000
+    }
     return (
       <div className="pb-28">
         <button onClick={() => { setStep(1); setSelectedProduct(null) }} className="text-sm text-gray-400 hover:text-gray-600 mb-4">Terug naar ritten</button>
@@ -144,7 +152,7 @@ export default function BookingPage() {
               if (day === null) return <div key={'empty-' + i} />
               const dateStr = year + '-' + String(month + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0')
               const avail = availability[dateStr]
-              const isPast = dateStr < minDate
+              const isPast = dateStr < today || isTooSoon(dateStr)
               const dow = new Date(year, month, day).getDay()
               const ourDay = dow === 0 ? 7 : dow
               const isAvailableDay = selectedProduct.available_days.includes(ourDay)

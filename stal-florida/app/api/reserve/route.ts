@@ -29,12 +29,6 @@ export async function POST(request: NextRequest) {
     const today = cetNow.getFullYear() + '-' + String(cetNow.getMonth() + 1).padStart(2, '0') + '-' + String(cetNow.getDate()).padStart(2, '0')
     if (date < today) return NextResponse.json({ error: 'Kan niet in het verleden boeken' }, { status: 400 })
 
-    // Minimum 24 uur van tevoren
-    const tomorrow = new Date(cetNow)
-    tomorrow.setDate(tomorrow.getDate() + 1)
-    const tomorrowStr = tomorrow.getFullYear() + '-' + String(tomorrow.getMonth() + 1).padStart(2, '0') + '-' + String(tomorrow.getDate()).padStart(2, '0')
-    if (date < tomorrowStr) return NextResponse.json({ error: 'Reserveren kan tot uiterlijk 24 uur van tevoren.' }, { status: 400 })
-
     const maxDate = new Date(cetNow)
     maxDate.setMonth(maxDate.getMonth() + 6)
     const maxDateStr = maxDate.getFullYear() + '-' + String(maxDate.getMonth() + 1).padStart(2, '0') + '-' + String(maxDate.getDate()).padStart(2, '0')
@@ -49,6 +43,16 @@ export async function POST(request: NextRequest) {
       .from('products').select('*').eq('id', product_id).eq('active', true).single()
 
     if (productError || !product) return NextResponse.json({ error: 'Product niet gevonden' }, { status: 404 })
+
+    // Minimum 24 uur van tevoren (op basis van starttijd van de rit)
+    const rideStartTime = time_slot ? time_slot.substring(0, 5) : (product.start_time ? product.start_time.substring(0, 5) : '09:00')
+    const [rideH, rideM] = rideStartTime.split(':').map(Number)
+    const rideStart = new Date(date + 'T' + String(rideH).padStart(2, '0') + ':' + String(rideM).padStart(2, '0') + ':00')
+    const nowCET = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Amsterdam' }))
+    const hoursUntilRide = (rideStart.getTime() - nowCET.getTime()) / (1000 * 60 * 60)
+    if (hoursUntilRide < 24) {
+      return NextResponse.json({ error: 'Reserveren kan tot uiterlijk 24 uur voor de rit.' }, { status: 400 })
+    }
 
     // Validate time slot
     if (product.time_slots && product.time_slots.length > 0) {
