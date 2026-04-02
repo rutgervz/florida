@@ -6,7 +6,10 @@ import { escapeHtml } from '@/lib/validation'
 const resend = new Resend(process.env.RESEND_API_KEY)
 const REPORT_EMAIL = 'stalflorida@gmail.com'
 
-function fmt(d: Date) { return d.toISOString().split('T')[0] }
+function fmt(d: Date) {
+  const cet = new Date(d.toLocaleString('en-US', { timeZone: 'Europe/Amsterdam' }))
+  return cet.getFullYear() + '-' + String(cet.getMonth() + 1).padStart(2, '0') + '-' + String(cet.getDate()).padStart(2, '0')
+}
 
 function getMonday(d: Date) {
   const day = d.getDay()
@@ -61,10 +64,19 @@ export async function GET(request: NextRequest) {
     const now = new Date()
 
     if (type === 'daily') {
+      // Cleanup: expire pending reservations as fallback for pg_cron
+      await supabaseAdmin.from('reservations').update({ status: 'expired' }).eq('status', 'pending').lt('expires_at', new Date().toISOString())
+      
       await sendDailyReport(now)
       await sendGuideReminders(now)
     } else if (type === 'weekly') {
       await sendWeeklyReport(now)
+
+      // Cleanup: remove guide assignments older than 3 months
+      const threeMonthsAgo = new Date(now)
+      threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3)
+      const cutoff = fmt(threeMonthsAgo)
+      await supabaseAdmin.from('guide_assignments').delete().lt('date', cutoff)
     }
 
     return NextResponse.json({ sent: true, type })

@@ -51,13 +51,14 @@ export default function BookingPage() {
 
   useEffect(() => {
     if (!selectedProduct) return
+    if (step !== 2) return // Only fetch when on calendar step
     const start = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1)
     const end = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 0)
     fetch('/api/availability?product_id=' + selectedProduct.id + '&start_date=' + ( start.getFullYear() + '-' + String(start.getMonth() + 1).padStart(2, '0') + '-' + String(start.getDate()).padStart(2, '0') ) + '&end_date=' + ( end.getFullYear() + '-' + String(end.getMonth() + 1).padStart(2, '0') + '-' + String(end.getDate()).padStart(2, '0') ))
       .then(r => r.json())
       .then(data => { if (data[selectedProduct.id]) setAvailability(data[selectedProduct.id]) })
       .catch(console.error)
-  }, [selectedProduct, calendarMonth])
+  }, [selectedProduct, calendarMonth, step])
 
   // Auto-init first rider when entering riders step
   const ridersStep = hasTimeSlots ? 4 : 3
@@ -99,7 +100,6 @@ export default function BookingPage() {
                   <div className="flex gap-2 flex-wrap">
                     <span className="text-xs px-2 py-1 rounded-full" style={{ backgroundColor: '#' + product.accent + '15', color: '#' + product.accent }}>Max {product.slots_total} ruiters{hasSlots ? ' per tijdslot' : ''}</span>
                     {product.slots_adult > 0 && <span className="text-xs px-2 py-1 rounded-full" style={{ backgroundColor: '#' + product.accent + '15', color: '#' + product.accent }}>Max {product.slots_adult} volw.</span>}
-                    {product.slots_child > 0 && <span className="text-xs px-2 py-1 rounded-full" style={{ backgroundColor: '#' + product.accent + '15', color: '#' + product.accent }}>Max {product.slots_child} kind.</span>}
                   </div>
                 </div>
               </div>
@@ -144,10 +144,12 @@ export default function BookingPage() {
               const dateStr = year + '-' + String(month + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0')
               const avail = availability[dateStr]
               const isPast = dateStr < today
-              const isSunday = (i % 7) === 6
+              const dow = new Date(year, month, day).getDay()
+              const ourDay = dow === 0 ? 7 : dow
+              const isAvailableDay = selectedProduct.available_days.includes(ourDay)
               const isBlocked = !avail || avail.blocked || avail.total_available === 0
               const isSelected = dateStr === selectedDate
-              const disabled = isPast || isSunday || isBlocked
+              const disabled = isPast || !isAvailableDay || isBlocked
 
               return (
                 <button key={dateStr} disabled={disabled}
@@ -155,10 +157,10 @@ export default function BookingPage() {
                   style={isSelected ? { backgroundColor: '#' + selectedProduct.accent + '15', outlineColor: '#' + selectedProduct.accent, outline: '2px solid' } : {}}
                   onClick={() => { setSelectedDate(dateStr); setSelectedTimeSlot(''); setRiders([]) }}>
                   <div className="font-medium" style={isSelected ? { color: '#' + selectedProduct.accent } : {}}>{day}</div>
-                  {!isPast && !isSunday && avail && !avail.blocked && !hasTimeSlots && (
+                  {!isPast && isAvailableDay && avail && !avail.blocked && !hasTimeSlots && (
                     <div className="text-[10px] text-gray-400">{avail.adults_available}V {avail.children_available}K</div>
                   )}
-                  {!isPast && !isSunday && avail && !avail.blocked && hasTimeSlots && avail.slots && (
+                  {!isPast && isAvailableDay && avail && !avail.blocked && hasTimeSlots && avail.slots && (
                     <div className="text-[10px] text-gray-400">
                       {Object.values(avail.slots).reduce((s, sl) => s + sl.total_available, 0)} vrij
                     </div>
@@ -169,7 +171,7 @@ export default function BookingPage() {
           </div>
           {!hasTimeSlots && (
             <div className="mt-4 text-xs text-gray-400 text-center">
-              V = volwassenen - K = kinderen - Zo = gesloten
+              V = volwassenen - K = kinderen - Grijze dagen = niet beschikbaar
             </div>
           )}
         </div>
@@ -401,6 +403,7 @@ export default function BookingPage() {
       : (selectedProduct.arrive_time ? selectedProduct.arrive_time.substring(0, 5) : displayTime)
 
     async function handlePayment() {
+      if (loading) return
       if (!agreedToTerms) { setError('Je moet akkoord gaan met de voorwaarden'); return }
       if (!contactEmail) { setError('Vul je e-mailadres in'); return }
       setLoading(true); setError('')

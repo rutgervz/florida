@@ -3,19 +3,10 @@ import { supabaseAdmin } from '@/lib/supabase'
 import { isValidUUID, isValidDate } from '@/lib/validation'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
 
-// Verify guide by ID + PIN
-async function verifyGuide(guideId: string, pin: string): Promise<boolean> {
-  if (!isValidUUID(guideId) || !pin || pin.length < 4) return false
-  const { data } = await supabaseAdmin
-    .from('guides').select('pin').eq('id', guideId).eq('active', true).single()
-  return data?.pin === pin
-}
-
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const action = searchParams.get('action')
 
-  // List active guides (names only, no sensitive data)
   if (action === 'list') {
     const { data, error } = await supabaseAdmin
       .from('guides').select('id, name').eq('active', true).order('name')
@@ -23,16 +14,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(data)
   }
 
-  // Get rides for a guide - requires PIN
   const guideId = searchParams.get('guide_id')
-  const pin = searchParams.get('pin')
-
   if (!guideId || !isValidUUID(guideId)) {
     return NextResponse.json({ error: 'guide_id is verplicht' }, { status: 400 })
-  }
-
-  if (!pin || !(await verifyGuide(guideId, pin))) {
-    return NextResponse.json({ error: 'Ongeldige PIN' }, { status: 401 })
   }
 
   const year = new Date().getFullYear()
@@ -122,15 +106,15 @@ export async function POST(request: NextRequest) {
   if (!allowed) return NextResponse.json({ error: 'Te veel verzoeken' }, { status: 429 })
 
   const body = await request.json()
-  const { guide_id, pin, product_id, date, time_slot } = body
+  const { guide_id, product_id, date, time_slot } = body
 
-  if (!guide_id || !pin || !(await verifyGuide(guide_id, pin))) {
-    return NextResponse.json({ error: 'Ongeldige PIN' }, { status: 401 })
-  }
-
-  if (!isValidUUID(product_id) || !isValidDate(date)) {
+  if (!isValidUUID(guide_id) || !isValidUUID(product_id) || !isValidDate(date)) {
     return NextResponse.json({ error: 'Ongeldige parameters' }, { status: 400 })
   }
+
+  const { data: guide } = await supabaseAdmin
+    .from('guides').select('id').eq('id', guide_id).eq('active', true).single()
+  if (!guide) return NextResponse.json({ error: 'Begeleider niet gevonden' }, { status: 404 })
 
   let query = supabaseAdmin.from('guide_assignments').select('id')
     .eq('product_id', product_id).eq('date', date)
@@ -158,16 +142,11 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const guideId = searchParams.get('guide_id')
-  const pin = searchParams.get('pin')
   const productId = searchParams.get('product_id')
   const date = searchParams.get('date')
   const timeSlot = searchParams.get('time_slot')
 
-  if (!guideId || !pin || !(await verifyGuide(guideId, pin))) {
-    return NextResponse.json({ error: 'Ongeldige PIN' }, { status: 401 })
-  }
-
-  if (!productId || !date) {
+  if (!guideId || !productId || !date) {
     return NextResponse.json({ error: 'Ongeldige parameters' }, { status: 400 })
   }
 

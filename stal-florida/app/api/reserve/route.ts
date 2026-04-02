@@ -24,12 +24,15 @@ export async function POST(request: NextRequest) {
     if (!isValidUUID(product_id)) return NextResponse.json({ error: 'Ongeldig product' }, { status: 400 })
     if (!isValidDate(date)) return NextResponse.json({ error: 'Ongeldige datum' }, { status: 400 })
 
-    const today = new Date().toISOString().split('T')[0]
+    // Use CET-aware date (Vercel runs in UTC)
+    const cetNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Amsterdam' }))
+    const today = cetNow.getFullYear() + '-' + String(cetNow.getMonth() + 1).padStart(2, '0') + '-' + String(cetNow.getDate()).padStart(2, '0')
     if (date < today) return NextResponse.json({ error: 'Kan niet in het verleden boeken' }, { status: 400 })
 
-    const maxDate = new Date()
+    const maxDate = new Date(cetNow)
     maxDate.setMonth(maxDate.getMonth() + 6)
-    if (date > maxDate.toISOString().split('T')[0]) return NextResponse.json({ error: 'Kan niet meer dan 6 maanden vooruit boeken' }, { status: 400 })
+    const maxDateStr = maxDate.getFullYear() + '-' + String(maxDate.getMonth() + 1).padStart(2, '0') + '-' + String(maxDate.getDate()).padStart(2, '0')
+    if (date > maxDateStr) return NextResponse.json({ error: 'Kan niet meer dan 6 maanden vooruit boeken' }, { status: 400 })
 
     if (!isValidEmail(contact_email)) return NextResponse.json({ error: 'Ongeldig e-mailadres' }, { status: 400 })
     if (contact_phone && !isValidPhone(contact_phone)) return NextResponse.json({ error: 'Ongeldig telefoonnummer' }, { status: 400 })

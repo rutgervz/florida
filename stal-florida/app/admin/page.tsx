@@ -52,13 +52,16 @@ export default function AdminPage() {
     else setLoginError('Onjuist wachtwoord')
   }
 
-  async function loadProducts() { const r = await fetch('/api/admin/products', { headers: authHeaders() }); if (r.ok) setProducts(await r.json()) }
-  async function loadBookings() { const r = await fetch('/api/admin/bookings', { headers: authHeaders() }); if (r.ok) setBookings(await r.json()) }
-  async function loadAllBookings() { const r = await fetch('/api/admin/bookings?status=confirmed', { headers: authHeaders() }); if (r.ok) { const confirmed = await r.json(); const r2 = await fetch('/api/admin/bookings?status=offline', { headers: authHeaders() }); const offline = r2.ok ? await r2.json() : []; setAllBookings([...confirmed, ...offline]) } }
-  async function loadBlockedDates() { const r = await fetch('/api/admin/block-date', { headers: authHeaders() }); if (r.ok) setBlockedDates(await r.json()) }
+  function handleExpiredSession() { sessionStorage.removeItem('admin_token'); setToken(''); setLoginError('Sessie verlopen. Log opnieuw in.') }
+
+  async function loadProducts() { const r = await fetch('/api/admin/products', { headers: authHeaders() }); if (r.status === 401) { handleExpiredSession(); return }; if (r.ok) setProducts(await r.json()) }
+  async function loadBookings() { const r = await fetch('/api/admin/bookings', { headers: authHeaders() }); if (r.status === 401) { handleExpiredSession(); return }; if (r.ok) setBookings(await r.json()) }
+  async function loadAllBookings() { const r = await fetch('/api/admin/bookings?status=confirmed', { headers: authHeaders() }); if (r.status === 401) { handleExpiredSession(); return }; if (r.ok) { const confirmed = await r.json(); const r2 = await fetch('/api/admin/bookings?status=offline', { headers: authHeaders() }); const offline = r2.ok ? await r2.json() : []; setAllBookings([...confirmed, ...offline]) } }
+  async function loadBlockedDates() { const r = await fetch('/api/admin/block-date', { headers: authHeaders() }); if (r.status === 401) { handleExpiredSession(); return }; if (r.ok) setBlockedDates(await r.json()) }
   async function loadAvailability() { const m = getMonday(weekOffset); const s = new Date(m); s.setDate(s.getDate() + 5); const r = await fetch('/api/availability?start_date=' + fmt(m) + '&end_date=' + fmt(s)); if (r.ok) setAvailability(await r.json()) }
   async function loadGuideAssignments() {
     const r = await fetch('/api/admin/guide-assignments', { headers: authHeaders() })
+    if (r.status === 401) { handleExpiredSession(); return }
     if (r.ok) setGuideAssignments(await r.json())
   }
 
@@ -237,7 +240,7 @@ export default function AdminPage() {
             <div className="bg-white rounded-xl shadow-sm p-4 mb-6 flex gap-3 flex-wrap items-end">
               <div className="flex-1 min-w-[200px]"><label className="text-xs text-gray-400 block mb-1">ZOEKEN</label><input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Naam, e-mail of telefoon..." className="w-full px-3 py-2 rounded-lg bg-gray-50 border border-gray-200 text-sm focus:outline-none focus:border-cyan-700" /></div>
               <div><label className="text-xs text-gray-400 block mb-1">STATUS</label><select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="px-3 py-2 rounded-lg bg-gray-50 border border-gray-200 text-sm"><option value="">Actief</option><option value="confirmed">Bevestigd</option><option value="pending">Wachtend</option><option value="offline">Offline</option><option value="cancelled">Geannuleerd</option><option value="expired">Verlopen</option></select></div>
-              <div className="text-sm text-gray-400">{(bookingsView === 'current' ? currentBookings : archiveBookings).length} resultaten</div>
+              <div className="text-sm text-gray-400">{(bookingsView === 'current' ? currentBookings.length : archiveBookings.length)} resultaten</div>
             </div>
             {(() => {
               const list = bookingsView === 'current' ? currentBookings : archiveBookings
@@ -355,7 +358,13 @@ function OfflineBookingForm({ products, authHeaders, onSaved }: { products: any[
       setRiderCount(1); setRiders([{ name: '', age: 0, weight: 0, experience: 'onbekend' }])
       onSaved()
     } else {
-      const data = await res.json(); setMessage('Fout: ' + (data.error || 'Onbekend'))
+      const data = await res.json()
+      const errMsg = data.error || 'Onbekend'
+      if (errMsg.includes('Niet genoeg plekken') || errMsg.includes('niet beschikbaar')) {
+        setMessage('Let op: ' + errMsg)
+      } else {
+        setMessage('Fout: ' + errMsg)
+      }
     }
     setSaving(false)
   }
@@ -615,7 +624,6 @@ function GuidesManager({ authHeaders }: { authHeaders: any }) {
                 <div>
                   <span className="font-medium">{g.name}</span>
                   <span className="text-gray-400 text-sm ml-3">{g.phone}</span>
-                  {g.pin && <span className="ml-3 text-xs bg-cyan-50 text-cyan-700 px-2 py-0.5 rounded-full font-mono">PIN: {g.pin}</span>}
                   {!g.active && <span className="ml-2 text-xs bg-gray-200 text-gray-500 px-2 py-0.5 rounded-full">Inactief</span>}
                 </div>
                 <div className="flex gap-2">
