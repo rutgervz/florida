@@ -77,6 +77,20 @@ export async function GET(request: NextRequest) {
       threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3)
       const cutoff = fmt(threeMonthsAgo)
       await supabaseAdmin.from('guide_assignments').delete().lt('date', cutoff)
+    } else if (type === 'test-sms') {
+      // Send test SMS to all active guides
+      const { data: guides } = await supabaseAdmin
+        .from('guides').select('name, phone').eq('active', true)
+      if (guides && guides.length > 0) {
+        const sent: string[] = []
+        for (const g of guides) {
+          if (!g.phone) continue
+          await sendGuideSMS(g.phone, 'Test bericht van Stal Florida. Als je dit ontvangt werkt de SMS service.')
+          sent.push(g.name)
+        }
+        return NextResponse.json({ sent: true, type, guides: sent })
+      }
+      return NextResponse.json({ sent: false, type, error: 'Geen actieve begeleiders gevonden' })
     }
 
     return NextResponse.json({ sent: true, type })
