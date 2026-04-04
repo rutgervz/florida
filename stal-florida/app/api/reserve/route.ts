@@ -12,7 +12,7 @@ import type { Rider } from '@/lib/types'
 
 export async function POST(request: NextRequest) {
   const ip = getClientIp(request)
-  const { allowed } = rateLimit('reserve:' + ip, 5, 60000)
+  const { allowed } = rateLimit('reserve:' + ip, 15, 60000)
   if (!allowed) {
     return NextResponse.json({ error: 'Te veel verzoeken. Probeer het over een minuut opnieuw.' }, { status: 429 })
   }
