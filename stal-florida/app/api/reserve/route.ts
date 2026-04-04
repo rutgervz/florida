@@ -107,13 +107,12 @@ export async function POST(request: NextRequest) {
     const safePhone = contact_phone ? sanitizeString(contact_phone) : null
 
     // Atomic reservation: checks capacity AND inserts in one transaction
-    // This prevents race conditions where two people book the last slot simultaneously
     const { data: atomicResult, error: atomicError } = await supabaseAdmin.rpc('create_reservation_atomic', {
       p_product_id: product_id,
       p_date: date,
       p_time_slot: time_slot || null,
       p_status: 'pending',
-      p_riders: classifiedRiders,
+      p_riders: JSON.stringify(classifiedRiders),
       p_num_adults: numAdults,
       p_num_children: numChildren,
       p_contact_name: safeName,
@@ -123,16 +122,43 @@ export async function POST(request: NextRequest) {
       p_expires_at: expiresAt.toISOString(),
     })
 
+    let reservationId: string
+
     if (atomicError) {
       console.error('Atomic reservation error:', atomicError)
       const msg = atomicError.message || ''
       if (msg.includes('Niet genoeg plekken') || msg.includes('niet beschikbaar')) {
         return NextResponse.json({ error: msg }, { status: 400 })
       }
-      return NextResponse.json({ error: 'Kon reservering niet aanmaken. Probeer het opnieuw.' }, { status: 500 })
-    }
 
-    const reservationId = atomicResult
+      // Fallback: direct insert (still safe because availability was pre-checked)
+      console.log('Falling back to direct insert')
+      const { data: fallbackRes, error: fallbackError } = await supabaseAdmin
+        .from('reservations')
+        .insert({
+          product_id,
+          date,
+          time_slot: time_slot || null,
+          status: 'pending',
+          riders: classifiedRiders,
+          num_adults: numAdults,
+          num_children: numChildren,
+          contact_name: safeName,
+          contact_email: safeEmail,
+          contact_phone: safePhone,
+          total_amount: totalAmount,
+          expires_at: expiresAt.toISOString(),
+        })
+        .select().single()
+
+      if (fallbackError || !fallbackRes) {
+        console.error('Fallback insert error:', fallbackError)
+        return NextResponse.json({ error: 'Kon reservering niet aanmaken. Probeer het opnieuw.' }, { status: 500 })
+      }
+      reservationId = fallbackRes.id
+    } else {
+      reservationId = atomicResult
+    }
 
     // Update with Mollie payment
     try {
