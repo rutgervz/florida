@@ -98,13 +98,13 @@ export default function AdminPage() {
   const todayRevenue = todayBookings.reduce((s: number, b: any) => s + parseFloat(b.total_amount), 0)
   const weekRevenue = weekBookings.reduce((s: number, b: any) => s + parseFloat(b.total_amount), 0)
   const monthRevenue = monthBookings.reduce((s: number, b: any) => s + parseFloat(b.total_amount), 0)
-  const todayRiders = todayBookings.reduce((s: number, b: any) => s + (b.riders?.length || 0), 0)
-  const weekRiders = weekBookings.reduce((s: number, b: any) => s + (b.riders?.length || 0), 0)
-  const monthRiders = monthBookings.reduce((s: number, b: any) => s + (b.riders?.length || 0), 0)
+  const todayRiders = todayBookings.reduce((s: number, b: any) => s + ((typeof b.riders === 'string' ? JSON.parse(b.riders) : b.riders)?.length || 0), 0)
+  const weekRiders = weekBookings.reduce((s: number, b: any) => s + ((typeof b.riders === 'string' ? JSON.parse(b.riders) : b.riders)?.length || 0), 0)
+  const monthRiders = monthBookings.reduce((s: number, b: any) => s + ((typeof b.riders === 'string' ? JSON.parse(b.riders) : b.riders)?.length || 0), 0)
 
   const filteredBookings = bookings.filter(b => {
     const q = searchQuery.toLowerCase()
-    const ms = !searchQuery || (b.contact_name || '').toLowerCase().includes(q) || (b.contact_email || '').toLowerCase().includes(q) || (b.contact_phone || '').includes(searchQuery) || (b.riders || []).some((r: any) => r.name.toLowerCase().includes(q))
+    const ms = !searchQuery || (b.contact_name || '').toLowerCase().includes(q) || (b.contact_email || '').toLowerCase().includes(q) || (b.contact_phone || '').includes(searchQuery) || (typeof b.riders === 'string' ? JSON.parse(b.riders) : b.riders || []).some((r: any) => r.name.toLowerCase().includes(q))
     const mst = !statusFilter || b.status === statusFilter
     return ms && mst
   })
@@ -278,7 +278,8 @@ function BookingCard({ booking: b, onCancel, guideAssignments }: { booking: any;
   const borderColors: Record<string, string> = { confirmed: '#2D5A3A', pending: '#7A4A2D', offline: '#2D6A7A', cancelled: '#999', expired: '#999' }
 
   // Match guide assignments by product + date + time_slot
-  const guideNames = guideAssignments
+  const assignments = Array.isArray(guideAssignments) ? guideAssignments : []
+  const guideNames = assignments
     .filter(ga => ga.product_id === b.product_id && ga.date === b.date &&
       (b.time_slot ? ga.time_slot && ga.time_slot.substring(0, 5) === b.time_slot.substring(0, 5) : !ga.time_slot))
     .map(ga => ga.guides?.name).filter(Boolean)
@@ -300,7 +301,7 @@ function BookingCard({ booking: b, onCancel, guideAssignments }: { booking: any;
           </div>
         </div>
       </div>
-      <div className="mt-2 text-sm text-gray-500">{b.riders?.map((r: any, i: number) => <span key={i}>{r.name} ({r.age}jr, {r.weight}kg){i < b.riders.length - 1 ? ' + ' : ''}</span>)}</div>
+      <div className="mt-2 text-sm text-gray-500">{(typeof b.riders === 'string' ? JSON.parse(b.riders) : b.riders || []).map((r: any, i: number) => <span key={i}>{r.name} ({r.age}jr, {r.weight}kg){i < (typeof b.riders === 'string' ? JSON.parse(b.riders) : b.riders || []).length - 1 ? ' + ' : ''}</span>)}</div>
       <div className="mt-2 flex justify-between items-center">
         <div className="flex items-center gap-2">
           {isActive && (
