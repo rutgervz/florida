@@ -4,6 +4,12 @@ import { Resend } from 'resend'
 import { escapeHtml } from '@/lib/validation'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
+
+function parseRiders(riders: any): any[] {
+  if (Array.isArray(riders)) return riders
+  if (typeof riders === 'string') try { return JSON.parse(riders) } catch { return [] }
+  return []
+}
 const REPORT_EMAIL = 'stalflorida@gmail.com'
 
 function fmt(d: Date) {
@@ -120,7 +126,7 @@ async function sendDailyReport(now: Date) {
     .order('time_slot', { ascending: true })
 
   const yesterdayRevenue = (yesterdaySales || []).reduce((s, b) => s + parseFloat(b.total_amount), 0)
-  const todayRiders = (todayRides || []).reduce((s, b) => s + (b.riders?.length || 0), 0)
+  const todayRiders = (todayRides || []).reduce((s, b) => s + (parseRiders(b.riders).length), 0)
 
   const dateFormatted = new Date(today).toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long' })
 
@@ -128,7 +134,7 @@ async function sendDailyReport(now: Date) {
   if (todayRides && todayRides.length > 0) {
     ridesHtml = todayRides.map(b => {
       const time = b.time_slot ? b.time_slot.substring(0, 5) : (b.products?.start_time ? b.products.start_time.substring(0, 5) : '')
-      const riderNames = (b.riders || []).map((r: any) => escapeHtml(r.name) + ' (' + r.age + 'jr, ' + r.weight + 'kg)').join(', ')
+      const riderNames = parseRiders(b.riders).map((r: any) => escapeHtml(r.name) + ' (' + r.age + 'jr, ' + r.weight + 'kg)').join(', ')
       const statusLabel = b.status === 'offline' ? ' [offline]' : ''
       return '<tr><td style="padding:8px;border-bottom:1px solid #eee">' + time + '</td>' +
         '<td style="padding:8px;border-bottom:1px solid #eee">' + escapeHtml(b.products?.icon + ' ' + b.products?.name) + statusLabel + '</td>' +
@@ -195,8 +201,8 @@ async function sendWeeklyReport(now: Date) {
     .order('date', { ascending: true }).order('time_slot', { ascending: true })
 
   const lastWeekRevenue = (lastWeekSales || []).reduce((s, b) => s + parseFloat(b.total_amount), 0)
-  const lastWeekRiders = (lastWeekSales || []).reduce((s, b) => s + (b.riders?.length || 0), 0)
-  const nextWeekRiders = (nextWeekRides || []).reduce((s, b) => s + (b.riders?.length || 0), 0)
+  const lastWeekRiders = (lastWeekSales || []).reduce((s, b) => s + (parseRiders(b.riders).length), 0)
+  const nextWeekRiders = (nextWeekRides || []).reduce((s, b) => s + (parseRiders(b.riders).length), 0)
 
   const weekLabel = 'Week ' + fmt(monday) + ' t/m ' + fmt(nextSunday)
 
@@ -205,7 +211,7 @@ async function sendWeeklyReport(now: Date) {
     nextWeekHtml = nextWeekRides.map(b => {
       const dayStr = new Date(b.date).toLocaleDateString('nl-NL', { weekday: 'short', day: 'numeric', month: 'short' })
       const time = b.time_slot ? b.time_slot.substring(0, 5) : (b.products?.start_time ? b.products.start_time.substring(0, 5) : '')
-      const riderCount = (b.riders || []).length
+      const riderCount = parseRiders(b.riders).length
       return '<tr><td style="padding:6px;border-bottom:1px solid #eee">' + dayStr + '</td>' +
         '<td style="padding:6px;border-bottom:1px solid #eee">' + time + '</td>' +
         '<td style="padding:6px;border-bottom:1px solid #eee">' + escapeHtml(b.products?.icon + ' ' + b.products?.name) + '</td>' +
