@@ -4,12 +4,8 @@ import { Resend } from 'resend'
 import { escapeHtml } from '@/lib/validation'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
+function parseRiders(riders: any): any[] { if (Array.isArray(riders)) return riders; if (typeof riders === 'string') try { return JSON.parse(riders) } catch { return [] }; return [] }
 
-function parseRiders(riders: any): any[] {
-  if (Array.isArray(riders)) return riders
-  if (typeof riders === 'string') try { return JSON.parse(riders) } catch { return [] }
-  return []
-}
 const REPORT_EMAIL = 'stalflorida@gmail.com'
 
 function fmt(d: Date) {
@@ -126,7 +122,7 @@ async function sendDailyReport(now: Date) {
     .order('time_slot', { ascending: true })
 
   const yesterdayRevenue = (yesterdaySales || []).reduce((s, b) => s + parseFloat(b.total_amount), 0)
-  const todayRiders = (todayRides || []).reduce((s, b) => s + (parseRiders(b.riders).length), 0)
+  const todayRiders = (todayRides || []).reduce((s, b) => s + (parseRiders(b.riders).length || 0), 0)
 
   const dateFormatted = new Date(today).toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long' })
 
@@ -201,8 +197,8 @@ async function sendWeeklyReport(now: Date) {
     .order('date', { ascending: true }).order('time_slot', { ascending: true })
 
   const lastWeekRevenue = (lastWeekSales || []).reduce((s, b) => s + parseFloat(b.total_amount), 0)
-  const lastWeekRiders = (lastWeekSales || []).reduce((s, b) => s + (parseRiders(b.riders).length), 0)
-  const nextWeekRiders = (nextWeekRides || []).reduce((s, b) => s + (parseRiders(b.riders).length), 0)
+  const lastWeekRiders = (lastWeekSales || []).reduce((s, b) => s + (parseRiders(b.riders).length || 0), 0)
+  const nextWeekRiders = (nextWeekRides || []).reduce((s, b) => s + (parseRiders(b.riders).length || 0), 0)
 
   const weekLabel = 'Week ' + fmt(monday) + ' t/m ' + fmt(nextSunday)
 
@@ -246,11 +242,12 @@ async function sendWeeklyReport(now: Date) {
 async function sendGuideReminders(now: Date) {
   const today = fmt(now)
 
-  // Get today's guide assignments with product info
+  // Get today's guide assignments with product info (only active guides)
   const { data: assignments } = await supabaseAdmin
     .from('guide_assignments')
-    .select('product_id, date, time_slot, guides(name, phone), products(name, icon, start_time)')
+    .select('product_id, date, time_slot, guides!inner(name, phone, active), products(name, icon, start_time)')
     .eq('date', today)
+    .eq('guides.active', true)
 
   if (!assignments || assignments.length === 0) return
 
