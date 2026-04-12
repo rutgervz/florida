@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
                   })()
                 : (product.arrive_time ? product.arrive_time.substring(0, 5) : (product.start_time ? product.start_time.substring(0, 5) : '')),
               duration: product.duration_minutes,
-              riders: reservation.riders,
+              riders: typeof reservation.riders === 'string' ? JSON.parse(reservation.riders) : reservation.riders || [],
               totalAmount: reservationAmount,
               warning: product.warning || undefined,
               timeSlot: reservation.time_slot ? reservation.time_slot.substring(0, 5) : undefined,
