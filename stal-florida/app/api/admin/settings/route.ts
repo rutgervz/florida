@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { verifyAdmin, unauthorizedResponse } from '@/lib/auth'
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  if (!verifyAdmin(request)) return unauthorizedResponse()
+
   const { data, error } = await supabaseAdmin
     .from('settings').select('*')
 
