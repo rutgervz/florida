@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { parseRiders } from '@/lib/riders'
 
 interface Product {
   id: string; name: string; description: string; icon: string; price: number
@@ -98,13 +99,13 @@ export default function AdminPage() {
   const todayRevenue = todayBookings.reduce((s: number, b: any) => s + parseFloat(b.total_amount), 0)
   const weekRevenue = weekBookings.reduce((s: number, b: any) => s + parseFloat(b.total_amount), 0)
   const monthRevenue = monthBookings.reduce((s: number, b: any) => s + parseFloat(b.total_amount), 0)
-  const todayRiders = todayBookings.reduce((s: number, b: any) => s + ((typeof b.riders === 'string' ? JSON.parse(b.riders) : b.riders)?.length || 0), 0)
-  const weekRiders = weekBookings.reduce((s: number, b: any) => s + ((typeof b.riders === 'string' ? JSON.parse(b.riders) : b.riders)?.length || 0), 0)
-  const monthRiders = monthBookings.reduce((s: number, b: any) => s + ((typeof b.riders === 'string' ? JSON.parse(b.riders) : b.riders)?.length || 0), 0)
+  const todayRiders = todayBookings.reduce((s: number, b: any) => s + parseRiders(b.riders).length, 0)
+  const weekRiders = weekBookings.reduce((s: number, b: any) => s + parseRiders(b.riders).length, 0)
+  const monthRiders = monthBookings.reduce((s: number, b: any) => s + parseRiders(b.riders).length, 0)
 
   const filteredBookings = bookings.filter(b => {
     const q = searchQuery.toLowerCase()
-    const ms = !searchQuery || (b.contact_name || '').toLowerCase().includes(q) || (b.contact_email || '').toLowerCase().includes(q) || (b.contact_phone || '').includes(searchQuery) || (typeof b.riders === 'string' ? JSON.parse(b.riders) : b.riders || []).some((r: any) => r.name.toLowerCase().includes(q))
+    const ms = !searchQuery || (b.contact_name || '').toLowerCase().includes(q) || (b.contact_email || '').toLowerCase().includes(q) || (b.contact_phone || '').includes(searchQuery) || parseRiders(b.riders).some((r: any) => r.name.toLowerCase().includes(q))
     const mst = !statusFilter || b.status === statusFilter
     return ms && mst
   })
@@ -301,7 +302,7 @@ function BookingCard({ booking: b, onCancel, guideAssignments }: { booking: any;
           </div>
         </div>
       </div>
-      <div className="mt-2 text-sm text-gray-500">{(typeof b.riders === 'string' ? JSON.parse(b.riders) : b.riders || []).map((r: any, i: number) => <span key={i}>{r.name} ({r.age}jr, {r.weight}kg){i < (typeof b.riders === 'string' ? JSON.parse(b.riders) : b.riders || []).length - 1 ? ' + ' : ''}</span>)}</div>
+      <div className="mt-2 text-sm text-gray-500">{parseRiders(b.riders).map((r: any, i: number, arr: any[]) => <span key={i}>{r.name} ({r.age}jr, {r.weight}kg){i < arr.length - 1 ? ' + ' : ''}</span>)}</div>
       <div className="mt-2 flex justify-between items-center">
         <div className="flex items-center gap-2">
           {isActive && (

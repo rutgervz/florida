@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
       p_date: date,
       p_time_slot: time_slot || null,
       p_status: 'pending',
-      p_riders: JSON.stringify(classifiedRiders),
+      p_riders: classifiedRiders,
       p_num_adults: numAdults,
       p_num_children: numChildren,
       p_contact_name: safeName,

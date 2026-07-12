@@ -7,7 +7,7 @@ export default function VoorwaardenPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetch('/api/admin/settings')
+    fetch('/api/voorwaarden')
       .then(r => r.json())
       .then(data => { setText(data.voorwaarden || ''); setLoading(false) })
       .catch(() => setLoading(false))

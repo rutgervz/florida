@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase'
 import { getMollieClient } from '@/lib/mollie'
 import { sendConfirmationEmail } from '@/lib/email'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
+import { parseRiders } from '@/lib/riders'
 
 export async function POST(request: NextRequest) {
   const ip = getClientIp(request)
@@ -89,7 +90,7 @@ export async function POST(request: NextRequest) {
                   })()
                 : (product.arrive_time ? product.arrive_time.substring(0, 5) : (product.start_time ? product.start_time.substring(0, 5) : '')),
               duration: product.duration_minutes,
-              riders: reservation.riders,
+              riders: parseRiders(reservation.riders),
               totalAmount: reservationAmount,
               warning: product.warning || undefined,
               timeSlot: reservation.time_slot ? reservation.time_slot.substring(0, 5) : undefined,

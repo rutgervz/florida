@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { Resend } from 'resend'
 import { escapeHtml } from '@/lib/validation'
+import { parseRiders } from '@/lib/riders'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
-function parseRiders(riders: any): any[] { if (Array.isArray(riders)) return riders; if (typeof riders === 'string') try { return JSON.parse(riders) } catch { return [] }; return [] }
 
 const REPORT_EMAIL = 'stalflorida@gmail.com'
 
@@ -109,7 +109,6 @@ async function sendDailyReport(now: Date) {
   // Yesterday's sales
   const { data: yesterdaySales } = await supabaseAdmin
     .from('reservations').select('*, products(name, icon, start_time)')
-    .eq('confirmed_at', undefined) // we'll filter by date instead
     .gte('created_at', yesterday + 'T00:00:00')
     .lt('created_at', today + 'T00:00:00')
     .in('status', ['confirmed', 'offline'])

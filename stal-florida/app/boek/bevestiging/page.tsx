@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
+import { parseRiders } from '@/lib/riders'
 
 function ConfirmationContent() {
   const searchParams = useSearchParams()
@@ -53,7 +54,7 @@ function ConfirmationContent() {
               <p className="text-gray-500 mb-2">{new Date(reservation.date).toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
               <p className="text-cyan-700 font-medium mb-4">Starttijd: {displayTime} - Aanwezig om {arriveTime}</p>
               <div className="border-t border-cyan-200 pt-3 mb-3">
-                {reservation.riders.map((r: any, i: number) => <p key={i} className="text-gray-600 text-sm py-1">{r.name} - {r.age} jr - {r.weight} kg</p>)}
+                {parseRiders(reservation.riders).map((r: any, i: number) => <p key={i} className="text-gray-600 text-sm py-1">{r.name} - {r.age} jr - {r.weight} kg</p>)}
               </div>
               <div className="border-t border-cyan-200 pt-3 flex justify-between">
                 <span className="text-gray-500">Totaal betaald</span>
