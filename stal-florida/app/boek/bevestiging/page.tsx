@@ -10,29 +10,42 @@ function ConfirmationContent() {
   const [reservation, setReservation] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [polling, setPolling] = useState(true)
+  const [timedOut, setTimedOut] = useState(false)
 
   useEffect(() => {
-    if (!reservationId) return
-    const interval = setInterval(async () => {
+    if (!reservationId) { setLoading(false); return }
+    let stopped = false
+    const check = async () => {
       try {
         const res = await fetch('/api/reservation?id=' + reservationId)
         if (!res.ok) return
         const data = await res.json()
-        if (data && data.id) {
+        if (data && data.id && !stopped) {
           setReservation(data)
           setLoading(false)
-          if (data.status === 'confirmed' || data.status === 'expired') {
+          if (data.status !== 'pending') {
             setPolling(false); clearInterval(interval)
           }
         }
       } catch (err) { console.error(err) }
-    }, 2000)
-    setTimeout(() => { setPolling(false); clearInterval(interval) }, 60000)
-    return () => clearInterval(interval)
+    }
+    const interval = setInterval(check, 2000)
+    check()
+    const timeout = setTimeout(() => { setPolling(false); setTimedOut(true); clearInterval(interval) }, 60000)
+    return () => { stopped = true; clearInterval(interval); clearTimeout(timeout) }
   }, [reservationId])
 
-  if (loading) return <div className="min-h-screen bg-cream flex items-center justify-center"><p className="text-gray-500">Betaling wordt verwerkt...</p></div>
-  if (!reservation) return <div className="min-h-screen bg-cream flex items-center justify-center"><p className="text-gray-500">Reservering niet gevonden.</p></div>
+  if (loading && !timedOut && reservationId) return <div className="min-h-screen bg-cream flex items-center justify-center"><p className="text-gray-500">Betaling wordt verwerkt...</p></div>
+  if (!reservation) return (
+    <div className="min-h-screen bg-cream flex items-center justify-center">
+      <div className="text-center px-6">
+        <h1 className="text-2xl font-serif mb-2">We konden de status van je betaling niet ophalen</h1>
+        <p className="text-gray-500 mb-6">Is er geld afgeschreven? Bel ons dan even. Anders kun je gewoon opnieuw boeken.</p>
+        <a href="/boek" className="px-6 py-3 bg-cyan-700 text-white rounded-xl font-medium">Opnieuw boeken</a>
+        <p className="text-sm text-gray-400 mt-6">06 41 91 87 02</p>
+      </div>
+    </div>
+  )
 
   const isConfirmed = reservation.status === 'confirmed'
   const product = reservation.products
@@ -67,7 +80,15 @@ function ConfirmationContent() {
           <div>
             <h1 className="text-3xl font-serif mb-2">Betaling wordt verwerkt</h1>
             <p className="text-gray-500">Even geduld, we wachten op bevestiging van de betaling...</p>
-            {polling && <p className="text-sm text-gray-400 mt-4">Dit kan een paar seconden duren.</p>}
+            {polling ? (
+              <p className="text-sm text-gray-400 mt-4">Dit kan een paar seconden duren.</p>
+            ) : (
+              <div className="mt-6">
+                <p className="text-gray-500 mb-4">Dit duurt langer dan verwacht. Heb je de betaling niet afgemaakt? Dan vervalt de reservering vanzelf en kun je opnieuw boeken.</p>
+                <a href="/boek" className="px-6 py-3 bg-cyan-700 text-white rounded-xl font-medium">Opnieuw boeken</a>
+                <p className="text-sm text-gray-400 mt-4">Wel betaald maar geen bevestiging? Bel 06 41 91 87 02.</p>
+              </div>
+            )}
           </div>
         ) : (
           <div>

@@ -20,8 +20,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Reservering niet gevonden' }, { status: 404 })
   }
 
-  // Only return confirmed/offline/pending - not cancelled/expired
-  if (!['confirmed', 'offline', 'pending'].includes(data.status)) {
+  // Expired en cancelled moeten wel terugkomen: de bevestigingspagina toont daarop
+  // de "Betaling niet gelukt" stand. Contactgegevens worden hieronder al weggelaten.
+  if (!['confirmed', 'offline', 'pending', 'expired', 'cancelled'].includes(data.status)) {
     return NextResponse.json({ error: 'Reservering niet gevonden' }, { status: 404 })
   }
 
