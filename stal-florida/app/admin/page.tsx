@@ -44,7 +44,8 @@ export default function AdminPage() {
 
   const authHeaders = useCallback(() => ({ 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }), [token])
 
-  useEffect(() => { if (!token) return; loadProducts(); loadBookings(); loadAllBookings(); loadBlockedDates(); loadGuideAssignments() }, [token])
+  useEffect(() => { if (!token) return; loadProducts(); loadAllBookings(); loadBlockedDates(); loadGuideAssignments() }, [token])
+  useEffect(() => { if (!token) return; loadBookings() }, [token, statusFilter])
   useEffect(() => { if (!token) return; loadAvailability() }, [token, weekOffset])
 
   async function login() {
@@ -56,8 +57,24 @@ export default function AdminPage() {
   function handleExpiredSession() { sessionStorage.removeItem('admin_token'); setToken(''); setLoginError('Sessie verlopen. Log opnieuw in.') }
 
   async function loadProducts() { const r = await fetch('/api/admin/products', { headers: authHeaders() }); if (r.status === 401) { handleExpiredSession(); return }; if (r.ok) setProducts(await r.json()) }
-  async function loadBookings() { const r = await fetch('/api/admin/bookings', { headers: authHeaders() }); if (r.status === 401) { handleExpiredSession(); return }; if (r.ok) setBookings(await r.json()) }
-  async function loadAllBookings() { const r = await fetch('/api/admin/bookings?status=confirmed', { headers: authHeaders() }); if (r.status === 401) { handleExpiredSession(); return }; if (r.ok) { const confirmed = await r.json(); const r2 = await fetch('/api/admin/bookings?status=offline', { headers: authHeaders() }); const offline = r2.ok ? await r2.json() : []; setAllBookings([...confirmed, ...offline]) } }
+  async function loadBookings() {
+    const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1)
+    const statusParam = statusFilter ? '&status=' + statusFilter : ''
+    const r = await fetch('/api/admin/bookings?start_date=' + fmt(new Date()) + statusParam, { headers: authHeaders() })
+    if (r.status === 401) { handleExpiredSession(); return }
+    const current = r.ok ? await r.json() : []
+    const r2 = await fetch('/api/admin/bookings?end_date=' + fmt(yesterday) + '&order=desc' + statusParam, { headers: authHeaders() })
+    const archive = r2.ok ? await r2.json() : []
+    setBookings([...current, ...archive])
+  }
+  async function loadAllBookings() {
+    const rangeStart = getMonday(0)
+    const rangeEnd = new Date(); rangeEnd.setDate(rangeEnd.getDate() + 30)
+    const range = '&start_date=' + fmt(rangeStart) + '&end_date=' + fmt(rangeEnd)
+    const r = await fetch('/api/admin/bookings?status=confirmed' + range, { headers: authHeaders() })
+    if (r.status === 401) { handleExpiredSession(); return }
+    if (r.ok) { const confirmed = await r.json(); const r2 = await fetch('/api/admin/bookings?status=offline' + range, { headers: authHeaders() }); const offline = r2.ok ? await r2.json() : []; setAllBookings([...confirmed, ...offline]) }
+  }
   async function loadBlockedDates() { const r = await fetch('/api/admin/block-date', { headers: authHeaders() }); if (r.status === 401) { handleExpiredSession(); return }; if (r.ok) setBlockedDates(await r.json()) }
   async function loadAvailability() { const m = getMonday(weekOffset); const s = new Date(m); s.setDate(s.getDate() + 5); const r = await fetch('/api/availability?start_date=' + fmt(m) + '&end_date=' + fmt(s)); if (r.ok) setAvailability(await r.json()) }
   async function loadGuideAssignments() {

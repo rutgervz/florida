@@ -10,13 +10,14 @@ export async function GET(request: NextRequest) {
   const status = searchParams.get('status')
   const startDate = searchParams.get('start_date')
   const endDate = searchParams.get('end_date')
+  const descending = searchParams.get('order') === 'desc'
 
   let query = supabaseAdmin
     .from('reservations')
     .select('*, products(name, icon, start_time, arrive_time, time_slots)')
-    .order('date', { ascending: true })
+    .order('date', { ascending: !descending })
     .order('created_at', { ascending: false })
-    .limit(200)
+    .limit(500)
 
   if (status) {
     const validStatuses = ['pending', 'confirmed', 'expired', 'cancelled', 'offline']
