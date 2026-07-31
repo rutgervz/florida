@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { parseRiders } from '@/lib/riders'
 
 interface Product {
@@ -37,15 +37,17 @@ export default function AdminPage() {
   const [availability, setAvailability] = useState<any>({})
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+  const [dateFilter, setDateFilter] = useState('')
   const [bookingsView, setBookingsView] = useState<'current' | 'archive'>('current')
   const [guideAssignments, setGuideAssignments] = useState<any[]>([])
+  const bookingsReqId = useRef(0)
 
   useEffect(() => { const s = sessionStorage.getItem('admin_token'); if (s) setToken(s) }, [])
 
   const authHeaders = useCallback(() => ({ 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }), [token])
 
   useEffect(() => { if (!token) return; loadProducts(); loadAllBookings(); loadBlockedDates(); loadGuideAssignments() }, [token])
-  useEffect(() => { if (!token) return; loadBookings() }, [token, statusFilter])
+  useEffect(() => { if (!token) return; loadBookings() }, [token, statusFilter, dateFilter])
   useEffect(() => { if (!token) return; loadAvailability() }, [token, weekOffset])
 
   async function login() {
@@ -58,14 +60,23 @@ export default function AdminPage() {
 
   async function loadProducts() { const r = await fetch('/api/admin/products', { headers: authHeaders() }); if (r.status === 401) { handleExpiredSession(); return }; if (r.ok) setProducts(await r.json()) }
   async function loadBookings() {
-    const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1)
+    // Verouderde responses mogen een nieuwere filterkeuze niet overschrijven
+    const reqId = ++bookingsReqId.current
     const statusParam = statusFilter ? '&status=' + statusFilter : ''
+    if (dateFilter) {
+      const r = await fetch('/api/admin/bookings?start_date=' + dateFilter + '&end_date=' + dateFilter + statusParam, { headers: authHeaders() })
+      if (r.status === 401) { handleExpiredSession(); return }
+      const rows = r.ok ? await r.json() : []
+      if (reqId === bookingsReqId.current) setBookings(rows)
+      return
+    }
+    const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1)
     const r = await fetch('/api/admin/bookings?start_date=' + fmt(new Date()) + statusParam, { headers: authHeaders() })
     if (r.status === 401) { handleExpiredSession(); return }
     const current = r.ok ? await r.json() : []
     const r2 = await fetch('/api/admin/bookings?end_date=' + fmt(yesterday) + '&order=desc' + statusParam, { headers: authHeaders() })
     const archive = r2.ok ? await r2.json() : []
-    setBookings([...current, ...archive])
+    if (reqId === bookingsReqId.current) setBookings([...current, ...archive])
   }
   async function loadAllBookings() {
     const rangeStart = getMonday(0)
@@ -129,6 +140,7 @@ export default function AdminPage() {
 
   const currentBookings = filteredBookings.filter(b => b.date >= today)
   const archiveBookings = filteredBookings.filter(b => b.date < today)
+  const visibleBookings = dateFilter ? filteredBookings : (bookingsView === 'current' ? currentBookings : archiveBookings)
 
   const planMonday = getMonday(weekOffset)
   const weekDays = Array.from({ length: 6 }, (_, i) => { const d = new Date(planMonday); d.setDate(d.getDate() + i); return d })
@@ -257,15 +269,14 @@ export default function AdminPage() {
             </div>
             <div className="bg-white rounded-xl shadow-sm p-4 mb-6 flex gap-3 flex-wrap items-end">
               <div className="flex-1 min-w-[200px]"><label className="text-xs text-gray-400 block mb-1">ZOEKEN</label><input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Naam, e-mail of telefoon..." className="w-full px-3 py-2 rounded-lg bg-gray-50 border border-gray-200 text-sm focus:outline-none focus:border-cyan-700" /></div>
+              <div><label className="text-xs text-gray-400 block mb-1">DATUM</label><div className="flex gap-1 items-center"><input type="date" value={dateFilter} onChange={e => setDateFilter(e.target.value)} className="px-3 py-2 rounded-lg bg-gray-50 border border-gray-200 text-sm" />{dateFilter && <button onClick={() => setDateFilter('')} className="px-2 py-2 text-sm text-red-500 hover:text-red-700">Wis</button>}</div></div>
               <div><label className="text-xs text-gray-400 block mb-1">STATUS</label><select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="px-3 py-2 rounded-lg bg-gray-50 border border-gray-200 text-sm"><option value="">Actief</option><option value="confirmed">Bevestigd</option><option value="pending">Wachtend</option><option value="offline">Offline</option><option value="cancelled">Geannuleerd</option><option value="expired">Verlopen</option></select></div>
-              <div className="text-sm text-gray-400">{(bookingsView === 'current' ? currentBookings.length : archiveBookings.length)} resultaten</div>
+              <div className="text-sm text-gray-400">{visibleBookings.length} resultaten</div>
             </div>
-            {(() => {
-              const list = bookingsView === 'current' ? currentBookings : archiveBookings
-              return list.length === 0
-                ? <div className="bg-white rounded-xl shadow-sm p-6 text-gray-400 text-center">{bookingsView === 'current' ? 'Geen actuele reserveringen' : 'Geen reserveringen in archief'}</div>
-                : <div className="space-y-3">{list.map((b: any) => <BookingCard key={b.id} booking={b} onCancel={cancelBooking} guideAssignments={guideAssignments} />)}</div>
-            })()}
+            {dateFilter && <div className="mb-4 text-sm text-gray-500">Alle reserveringen op <span className="font-medium text-gray-700">{new Date(dateFilter).toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span></div>}
+            {visibleBookings.length === 0
+              ? <div className="bg-white rounded-xl shadow-sm p-6 text-gray-400 text-center">{dateFilter ? 'Geen reserveringen op deze datum' : bookingsView === 'current' ? 'Geen actuele reserveringen' : 'Geen reserveringen in archief'}</div>
+              : <div className="space-y-3">{visibleBookings.map((b: any) => <BookingCard key={b.id} booking={b} onCancel={cancelBooking} guideAssignments={guideAssignments} />)}</div>}
           </div>
         )}
 
